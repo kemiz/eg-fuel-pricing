@@ -46,13 +46,37 @@ static `EG_LAKEBASE_URL` Postgres connection string (Mode B).
 
 ## Deploy (Databricks Apps)
 
+This app deploys the same way as the other Databricks Apps in this workspace
+(`asos-control-tower`, `adr-prototype`): a compact, committed `.next/standalone/`
+bundle is the deploy source, declared as an app in `databricks.yml`.
+
+### 1. Build + commit the bundle (git release)
+
 ```bash
 npm run deploy           # build standalone bundle, commit, push current branch
-npm run release -- patch # bump version, build, tag, push
+npm run release -- patch # bump version, build, tag, push (patch|minor|major|X.Y.Z)
 ```
 
-The deploy scripts pack `node_modules` into `.next/standalone/node_modules.tgz` and commit only the
-compact standalone bundle; the Apps runtime untars deps and runs `node server.js`.
+The scripts pack `node_modules` into `.next/standalone/node_modules.tgz` and commit only the
+compact bundle (`server.js`, `.next/`, `public/`, the tarball, and a generated `app.yaml`); the
+Apps runtime copies it into `$TMPDIR`, untars deps, and runs `node server.js`. `package.json` is
+dropped from the bundle so the egress-proxied runtime never attempts `npm install`.
+
+### 2. Ship it
+
+Either point the **Databricks Apps UI** at this repo/branch (it pulls the committed
+`.next/standalone/` source path), or use the DABs bundle from the CLI:
+
+```bash
+databricks bundle validate --target dev --profile alice
+databricks bundle deploy   --target dev --profile alice   # uploads source + config
+databricks bundle run eg-fuel-pricing --target dev --profile alice  # (re)apply config + (re)start
+```
+
+`bundle deploy` uploads the source and config; `bundle run` is what actually re-applies the app
+config and restarts it. Runtime env lives in the repo-root `app.yaml` (the single source of truth);
+`databricks.yml` mirrors it and declares the Lakebase `eg-fuel-pricing` database resource so the app
+service principal is granted access on deploy.
 
 ## Notes
 

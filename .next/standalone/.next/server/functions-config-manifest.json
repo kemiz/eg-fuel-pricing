@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/assistant": {
+      "maxDuration": 300
+    },
+    "/api/llm": {},
+    "/api/map": {},
+    "/api/pricing/recommend": {
+      "maxDuration": 300
+    }
+  }
+}

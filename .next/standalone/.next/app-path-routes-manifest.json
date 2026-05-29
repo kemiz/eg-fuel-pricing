@@ -1,0 +1,13 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/api/assistant/route": "/api/assistant",
+  "/api/llm/route": "/api/llm",
+  "/api/map/route": "/api/map",
+  "/api/pricing/recommend/route": "/api/pricing/recommend",
+  "/ask/page": "/ask",
+  "/network/page": "/network",
+  "/page": "/",
+  "/site/[id]/page": "/site/[id]",
+  "/sites/page": "/sites"
+}

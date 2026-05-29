@@ -1,27 +1,35 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import type { SiteSnapshot } from "@/lib/types";
+import type { PriceHistory, SiteSnapshot } from "@/lib/types";
 import { BrandBadge } from "@/components/Brand";
-import { AgentRoom } from "@/components/AgentRoom";
 import { MarginChart } from "@/components/MarginChart";
+import { PriceHistoryChart } from "@/components/PriceHistoryChart";
+import { AskAssistant } from "@/components/assistant/AskAssistant";
+import { SectionHeader } from "@/components/ui";
+import { regionLabel } from "@/lib/geo";
 import { formatPrice, unitLabel } from "@/lib/utils";
 
-export function SiteDetail({ snapshot }: { snapshot: SiteSnapshot }) {
+export function SiteDetail({
+  snapshot,
+  priceHistory,
+}: {
+  snapshot: SiteSnapshot;
+  priceHistory?: PriceHistory | null;
+}) {
   const router = useRouter();
-  const [roomOpen, setRoomOpen] = useState(false);
+  void router;
   const { site, grades, costs, competitors, demand, latestRecommendations } = snapshot;
 
   return (
     <div className="space-y-6">
       <Link
-        href="/"
+        href="/sites"
         className="inline-flex items-center gap-1 text-sm text-eg-ink-soft hover:text-eg-navy"
       >
-        <ArrowLeft size={15} /> Network
+        <ArrowLeft size={15} /> Sites
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -31,18 +39,16 @@ export function SiteDetail({ snapshot }: { snapshot: SiteSnapshot }) {
             <BrandBadge brand={site.brand} />
           </div>
           <p className="text-sm text-eg-ink-soft">
-            {site.region}, {site.country} · pricing in {site.currency} per {site.unit}
+            {regionLabel(site.country, site.region)}, {site.country} · pricing in{" "}
+            {site.currency} per {site.unit}
           </p>
         </div>
-        <button
-          onClick={() => setRoomOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-eg-red px-4 py-2 text-sm font-medium text-white hover:bg-eg-red-600"
-        >
-          <Sparkles size={16} /> Optimise price
-        </button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-6 lg:grid-cols-5">
+        {/* Left: data */}
+        <div className="space-y-4 lg:col-span-3">
+        <div className="grid gap-4 sm:grid-cols-2">
         {/* Per-grade snapshot table */}
         <div className="card overflow-hidden">
           <div className="border-b border-eg-line px-4 py-3 text-sm font-semibold text-eg-ink">
@@ -115,6 +121,18 @@ export function SiteDetail({ snapshot }: { snapshot: SiteSnapshot }) {
         </div>
       </div>
 
+      {/* Price history vs competitors */}
+      {priceHistory && priceHistory.days.length > 1 && (
+        <div className="card overflow-hidden">
+          <div className="border-b border-eg-line px-4 py-3 text-sm font-semibold text-eg-ink">
+            Price history (regular)
+          </div>
+          <div className="px-4 py-4">
+            <PriceHistoryChart history={priceHistory} />
+          </div>
+        </div>
+      )}
+
       {/* Recommendation history */}
       <div className="card overflow-hidden">
         <div className="border-b border-eg-line px-4 py-3 text-sm font-semibold text-eg-ink">
@@ -122,7 +140,7 @@ export function SiteDetail({ snapshot }: { snapshot: SiteSnapshot }) {
         </div>
         {latestRecommendations.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-eg-ink-soft">
-            No recommendations yet. Run the agents with “Optimise price”.
+            No recommendations yet. Run the agents from the assistant on the right.
           </p>
         ) : (
           <>
@@ -146,13 +164,21 @@ export function SiteDetail({ snapshot }: { snapshot: SiteSnapshot }) {
           </>
         )}
       </div>
+        </div>
 
-      <AgentRoom
-        site={site}
-        open={roomOpen}
-        onClose={() => setRoomOpen(false)}
-        onSaved={() => router.refresh()}
-      />
+        {/* Right: site assistant (runs the pricing agents inline) — fills the
+            viewport height and stays in view while the left column scrolls. */}
+        <div className="lg:col-span-2 lg:sticky lg:top-28 flex flex-col gap-3 lg:h-[calc(100vh-9rem)]">
+          <SectionHeader
+            eyebrow="Pricing agents"
+            title="Ask about this site"
+            description="Ask a question or say “optimise the regular price” to convene the agents."
+          />
+          <div className="min-h-0 flex-1">
+            <AskAssistant sites={[site]} focusSite={site} fill />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

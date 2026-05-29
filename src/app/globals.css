@@ -144,3 +144,65 @@ textarea::placeholder {
   50% { opacity: 0.45; }
 }
 .eg-pulse { animation: eg-pulse 1.2s ease-in-out infinite; }
+
+@keyframes eg-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+.eg-caret { animation: eg-blink 1s step-end infinite; }
+
+/* Thin scrollbars for chat / panels. */
+.eg-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.eg-scroll::-webkit-scrollbar-thumb {
+  background: var(--eg-line);
+  border-radius: 8px;
+}
+.eg-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* -------------------------------------------------------------------- */
+/* Assistant markdown (Stride-style inline rendering)                     */
+/* -------------------------------------------------------------------- */
+.eg-md { font-size: 0.875rem; line-height: 1.6; color: var(--eg-ink); }
+.eg-md > :first-child { margin-top: 0; }
+.eg-md > :last-child { margin-bottom: 0; }
+.eg-md p { margin: 0 0 0.5rem; }
+.eg-md h1 { font-size: 1rem; font-weight: 700; margin: 1rem 0 0.5rem; color: var(--eg-ink); }
+.eg-md h2 {
+  font-size: 0.9rem; font-weight: 700; margin: 0.9rem 0 0.4rem;
+  color: var(--eg-ink); border-bottom: 1px solid var(--eg-line); padding-bottom: 0.25rem;
+}
+.eg-md h3 { font-size: 0.85rem; font-weight: 600; margin: 0.75rem 0 0.35rem; color: var(--eg-ink); }
+.eg-md ul { list-style: disc; margin: 0 0 0.5rem; padding-left: 1.15rem; }
+.eg-md ol { list-style: decimal; margin: 0 0 0.5rem; padding-left: 1.25rem; }
+.eg-md li { margin: 0.1rem 0; }
+.eg-md strong { font-weight: 700; color: var(--eg-ink); }
+.eg-md em { font-style: italic; }
+.eg-md hr { margin: 0.75rem 0; border: 0; border-top: 1px solid var(--eg-line); }
+.eg-md blockquote {
+  border-left: 3px solid var(--eg-red); padding-left: 0.6rem; margin: 0 0 0.5rem;
+  color: var(--eg-ink-soft); font-style: italic;
+}
+.eg-md code {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.8em; background: var(--eg-surface-2);
+  padding: 0.1rem 0.3rem; border-radius: 4px;
+}
+.eg-md pre { margin: 0 0 0.5rem; }
+.eg-md table {
+  width: 100%; border-collapse: collapse; font-size: 0.78rem;
+  margin: 0 0 0.6rem; border: 1px solid var(--eg-line); border-radius: 8px; overflow: hidden;
+}
+.eg-md th {
+  text-align: left; background: var(--eg-surface-2); color: var(--eg-ink);
+  font-weight: 600; padding: 0.35rem 0.55rem; border-bottom: 1px solid var(--eg-line);
+}
+.eg-md td { padding: 0.35rem 0.55rem; border-bottom: 1px solid var(--eg-line); }
+.eg-md tr:last-child td { border-bottom: 0; }
+.eg-md a { color: var(--eg-navy); text-decoration: underline; text-underline-offset: 2px; }
+
+/* Entity drill-down link rendered inside assistant markdown. */
+.eg-entity {
+  color: var(--eg-navy); font-weight: 600; cursor: pointer;
+  border-bottom: 1px dashed var(--eg-navy); padding-bottom: 1px;
+}
+.eg-entity:hover { background: var(--eg-surface-2); border-radius: 3px; }

@@ -80,4 +80,8 @@ fi
 echo ""
 
 echo "=== Done ==="
-echo "Deploy from the Databricks Apps UI (it pulls origin/$BRANCH)."
+echo "Ship it one of two ways:"
+echo "  - Databricks Apps UI: it pulls origin/$BRANCH and the committed .next/standalone/."
+echo "  - DABs CLI:"
+echo "      databricks bundle deploy --target dev --profile alice"
+echo "      databricks bundle run eg-fuel-pricing --target dev --profile alice"

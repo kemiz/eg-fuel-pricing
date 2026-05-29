@@ -84,10 +84,34 @@ export interface SiteMapPoint {
   delta: number | null;
   /** Modelled per-unit margin on regular grade. */
   margin: number | null;
+  /** Per-unit cost (wholesale + delivery) on regular grade. */
+  unitCost: number | null;
+  /** Average daily volume on regular grade (units/day). */
+  volume: number | null;
+  /** Price elasticity of demand on regular grade (negative). */
+  elasticity: number | null;
 }
 
 export interface MapData {
   country: Country;
   sites: SiteMapPoint[];
   competitors: CompetitorPrice[];
+}
+
+/** One daily price series (EG or a competitor) for the history chart. */
+export interface PriceSeries {
+  /** "EG" for our own price, otherwise the competitor name. */
+  series: string;
+  isEg: boolean;
+  points: { day: string; price: number }[];
+}
+
+export interface PriceHistory {
+  siteId: string;
+  gradeId: GradeId;
+  currency: string;
+  unit: string;
+  /** ISO date strings, oldest -> newest. */
+  days: string[];
+  series: PriceSeries[];
 }

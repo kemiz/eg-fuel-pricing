@@ -1,0 +1,102 @@
+# Bundle definition for the EG Group fuel-price optimisation Databricks App.
+#
+# Deploy:
+#   databricks bundle deploy --target dev --profile alice
+#   databricks bundle run eg-fuel-pricing --target dev --profile alice
+#
+# `bundle deploy` uploads the source (the committed `.next/standalone/` bundle)
+# + this bundle config. `bundle run` is what actually (re)applies the app
+# config and (re)starts the app — running only `deploy` leaves the running app
+# on its previous config.
+#
+# Git-based deploys: commit the compact standalone bundle with
+# `npm run deploy` (or `npm run release -- patch`), then either point the
+# Databricks Apps UI at this repo/branch, or run the bundle commands above —
+# both pull the same committed `.next/standalone/` source path.
+bundle:
+  name: eg-fuel-pricing-bundle
+
+variables:
+  lakebase_instance:
+    description: Lakebase Postgres instance backing the EG app schema.
+    default: eg-fuel-pricing
+  llm_endpoint:
+    description: Flagship Model Serving endpoint that synthesises recommendations.
+    default: databricks-claude-sonnet-4-6
+  llm_fast_endpoint:
+    description: Fast Model Serving endpoint for the specialist analyst agents.
+    default: databricks-claude-haiku-4-5
+
+resources:
+  apps:
+    eg-fuel-pricing:
+      name: eg-fuel-pricing
+      description: "EG Group multi-agent fuel-price optimisation MVP — drillable US/UK network map, pricing agents and Ask EG analyst."
+      source_code_path: ./
+
+      # NOTE: Variables (${var.xxx}) are NOT resolved inside `config.env` values
+      # at runtime — use literal values here. Resource IDs CAN reference vars.
+      config:
+        # Apps platform can't `npm install` (egress proxy blocks the npm
+        # registry), so deps ship as `.next/standalone/node_modules.tgz`.
+        # The command below copies the bundle into $TMPDIR, untars
+        # node_modules there, and starts the Next.js standalone server.
+        # Mirrors the top-level app.yaml — `config` overrides app.yaml when
+        # both are present, so keep them in sync (or remove this block and
+        # let app.yaml win). Regenerated env lives in app.yaml.
+        command:
+          - "sh"
+          - "-c"
+          - "RUNTIME_DIR=${TMPDIR:-/tmp}/eg-app-runtime; rm -rf $RUNTIME_DIR; mkdir -p $RUNTIME_DIR; cp -R .next/standalone/. $RUNTIME_DIR; cd $RUNTIME_DIR; tar --warning=no-unknown-keyword -xzf node_modules.tgz 2>/dev/null || tar -xzf node_modules.tgz; node server.js"
+        env:
+          - name: NODE_ENV
+            value: production
+          - name: HOSTNAME
+            value: 0.0.0.0
+          - name: NODE_OPTIONS
+            value: "--max-old-space-size=4096"
+
+          # Workspace host. Literal for standalone git deploys; the resource
+          # block below grants the app service principal access.
+          - name: EG_DATABRICKS_HOST
+            value: https://fe-vm-alice.cloud.databricks.com
+
+          # Lakebase Postgres instance `eg-fuel-pricing`. The service principal
+          # identity comes from the Apps runtime; the @databricks/lakebase pool
+          # mints OAuth credentials against this instance.
+          - name: PGHOST
+            value: ep-nameless-tooth-d2gveqy4.database.us-east-1.cloud.databricks.com
+          - name: PGDATABASE
+            value: databricks_postgres
+          - name: PGPORT
+            value: "5432"
+          - name: EG_LAKEBASE_DB
+            value: databricks_postgres
+          - name: EG_LAKEBASE_INSTANCE
+            value: eg-fuel-pricing
+          - name: PGSSLMODE
+            value: require
+
+          # EG namespace — app schema for pricing tables.
+          - name: EG_PG_APP_SCHEMA
+            value: eg_app
+
+          # Model Serving endpoints powering the pricing agents.
+          - name: EG_LLM_ENDPOINT
+            value: serving-endpoints/databricks-claude-sonnet-4-6/invocations
+          - name: EG_LLM_FAST_ENDPOINT
+            value: serving-endpoints/databricks-claude-haiku-4-5/invocations
+
+      resources:
+        - name: eg-database
+          description: Lakebase Postgres instance backing the EG fuel pricing app schema.
+          database:
+            instance_name: ${var.lakebase_instance}
+            database_name: databricks_postgres
+            permission: CAN_CONNECT_AND_CREATE
+
+targets:
+  dev:
+    default: true
+    workspace:
+      profile: alice

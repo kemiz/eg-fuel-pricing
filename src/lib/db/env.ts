@@ -23,15 +23,20 @@ export const env = {
     "",
   databricksProfile: process.env.DATABRICKS_PROFILE ?? "alice",
 
-  // Lakebase
-  lakebaseEndpoint:
-    process.env.EG_LAKEBASE_ENDPOINT ??
-    process.env.LAKEBASE_ENDPOINT ??
-    "projects/eg-fuel-pricing/branches/production/endpoints/primary",
+  // Lakebase (direct database instance)
+  lakebaseInstance:
+    process.env.EG_LAKEBASE_INSTANCE ?? "eg-fuel-pricing",
+  lakebaseHost:
+    process.env.PGHOST ??
+    process.env.EG_LAKEBASE_HOST ??
+    "ep-nameless-tooth-d2gveqy4.database.us-east-1.cloud.databricks.com",
+  lakebasePort: Number(process.env.PGPORT ?? "5432"),
   lakebaseDb:
     process.env.PGDATABASE ??
     process.env.EG_LAKEBASE_DB ??
-    "eg_fuel_pricing",
+    "databricks_postgres",
+  lakebaseUser: process.env.PGUSER ?? process.env.EG_LAKEBASE_USER,
+  // Mode B: a fully-specified static Postgres URL (skips OAuth credential mint).
   lakebaseUrl: process.env.EG_LAKEBASE_URL,
 
   // Schema layout

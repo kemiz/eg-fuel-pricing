@@ -28,7 +28,6 @@ const US_NAME_TO_CODE: Record<string, string> = Object.fromEntries(
 export function geoRegionKey(country: Country, geoName: string): string {
   if (country === "US") return US_NAME_TO_CODE[geoName] ?? geoName;
   if (geoName === "Yorkshire and The Humber") return "Yorkshire";
-  if (geoName === "Eastern") return "East";
   return geoName;
 }
 

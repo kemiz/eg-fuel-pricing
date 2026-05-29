@@ -33,18 +33,19 @@ env:
   - name: EG_DATABRICKS_HOST
     value: https://fe-vm-alice.cloud.databricks.com
 
-  # Lakebase Postgres endpoint. The service principal identity comes from the
-  # Apps runtime.
-  - name: LAKEBASE_ENDPOINT
-    value: projects/eg-fuel-pricing/branches/production/endpoints/primary
-  - name: EG_LAKEBASE_ENDPOINT
-    value: projects/eg-fuel-pricing/branches/production/endpoints/primary
+  # Lakebase Postgres instance `eg-fuel-pricing` (created via the Databricks
+  # database CLI). The service principal identity comes from the Apps runtime;
+  # the @databricks/lakebase pool mints OAuth credentials against this instance.
+  - name: PGHOST
+    value: ep-nameless-tooth-d2gveqy4.database.us-east-1.cloud.databricks.com
   - name: PGDATABASE
-    value: eg_fuel_pricing
+    value: databricks_postgres
   - name: PGPORT
     value: "5432"
   - name: EG_LAKEBASE_DB
-    value: eg_fuel_pricing
+    value: databricks_postgres
+  - name: EG_LAKEBASE_INSTANCE
+    value: eg-fuel-pricing
   - name: PGSSLMODE
     value: require
 
@@ -65,8 +66,8 @@ env:
 # does not depend on valueFrom injection.
 resources:
   - name: eg-database
-    description: Lakebase Postgres database backing the EG fuel pricing app schema.
-    postgres:
-      branch: projects/eg-fuel-pricing/branches/production
-      database: projects/eg-fuel-pricing/branches/production/databases/db-eg-fuel-pricing
+    description: Lakebase Postgres instance backing the EG fuel pricing app schema.
+    database:
+      instance_name: eg-fuel-pricing
+      database_name: databricks_postgres
       permission: CAN_CONNECT_AND_CREATE
