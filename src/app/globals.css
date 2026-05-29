@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+/* Enable the `dark:` variant on a `data-theme="dark"` attribute or `.dark`. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, .dark, .dark *));
+
+/* ---------------------------------------------------------------------- */
+/* Light theme (default)                                                  */
+/* ---------------------------------------------------------------------- */
+:root {
+  /* EG Group corporate identity: deep navy + red accent. */
+  --eg-navy: #0a1f44;
+  --eg-navy-600: #143063;
+  --eg-navy-700: #07173a;
+  --eg-red: #e4002b;
+  --eg-red-600: #c20025;
+
+  /* Semantic surfaces / text. */
+  --eg-ink: #0f172a;            /* primary text */
+  --eg-ink-soft: #51607a;       /* secondary text */
+  --eg-paper: #f4f6fb;          /* page background */
+  --eg-line: #dfe5f0;           /* hairline borders */
+  --eg-surface: #ffffff;        /* cards / panels */
+  --eg-surface-2: #eef2f9;      /* alt panel / table stripe */
+  --eg-surface-raised: #ffffff;
+
+  --background: var(--eg-paper);
+  --foreground: var(--eg-ink);
+
+  /* Price-delta scale: cheaper than competitors (good) -> dearer (bad). */
+  --delta-cheap-bg: #dcfbe7;
+  --delta-cheap-fg: #0f6b34;
+  --delta-near-bg: #fff4cf;
+  --delta-near-fg: #6b4a00;
+  --delta-dear-bg: #fde0dc;
+  --delta-dear-fg: #8a1a13;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Dark theme                                                             */
+/* ---------------------------------------------------------------------- */
+:root[data-theme="dark"],
+.dark {
+  --eg-navy: #4c7df0;
+  --eg-navy-600: #3f6fe0;
+  --eg-navy-700: #6b97f5;
+  --eg-red: #ff5a6e;
+  --eg-red-600: #ff7384;
+
+  --eg-ink: #f4f7fb;
+  --eg-ink-soft: #9aa7bd;
+  --eg-paper: #060912;
+  --eg-line: #1e2638;
+  --eg-surface: #0f1626;
+  --eg-surface-2: #141d30;
+  --eg-surface-raised: #1a2438;
+
+  --background: var(--eg-paper);
+  --foreground: var(--eg-ink);
+
+  --delta-cheap-bg: #11331f;
+  --delta-cheap-fg: #8ff0b3;
+  --delta-near-bg: #33290a;
+  --delta-near-fg: #ffd98a;
+  --delta-dear-bg: #3a1512;
+  --delta-dear-fg: #ffb3ad;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-eg-navy: var(--eg-navy);
+  --color-eg-navy-600: var(--eg-navy-600);
+  --color-eg-navy-700: var(--eg-navy-700);
+  --color-eg-red: var(--eg-red);
+  --color-eg-red-600: var(--eg-red-600);
+  --color-eg-ink: var(--eg-ink);
+  --color-eg-ink-soft: var(--eg-ink-soft);
+  --color-eg-paper: var(--eg-paper);
+  --color-eg-line: var(--eg-line);
+  --color-eg-surface: var(--eg-surface);
+  --color-eg-surface-2: var(--eg-surface-2);
+  --color-eg-surface-raised: var(--eg-surface-raised);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  background: var(--eg-paper);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"],
+.dark {
+  color-scheme: dark;
+}
+
+input,
+select,
+textarea {
+  color: inherit;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--eg-ink-soft);
+  opacity: 0.7;
+}
+:root[data-theme="dark"] option,
+.dark option {
+  background-color: var(--eg-surface);
+  color: var(--eg-ink);
+}
+
+/* Card ring used throughout the prototype. */
+.card {
+  background: var(--eg-surface);
+  border: 1px solid var(--eg-line);
+  border-radius: 14px;
+}
+
+.kpi-num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* EG hero gradient — navy ramp. */
+.eg-gradient {
+  background: linear-gradient(120deg, #07173a 0%, #0a1f44 55%, #143063 100%);
+}
+
+/* Price-delta chips. */
+.delta-cheap { background: var(--delta-cheap-bg); color: var(--delta-cheap-fg); }
+.delta-near  { background: var(--delta-near-bg);  color: var(--delta-near-fg); }
+.delta-dear  { background: var(--delta-dear-bg);  color: var(--delta-dear-fg); }
+
+/* Subtle pulse used while agents are working. */
+@keyframes eg-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.eg-pulse { animation: eg-pulse 1.2s ease-in-out infinite; }

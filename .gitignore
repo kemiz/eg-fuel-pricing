@@ -1,0 +1,46 @@
+# Dependencies - package.json/lock can be excluded from source deploys so
+# Databricks Apps runs the committed standalone bundle instead of npm install.
+/node_modules
+/package.json
+/package-lock.json
+/.pnp
+.pnp.*
+
+# Next.js - the standalone bundle is committed for Databricks Apps git deploys,
+# but only as a compact source path: raw node_modules + the standalone-bundler's
+# package.json are excluded so the diff stays sane. The deploy scripts pack
+# node_modules into `.next/standalone/node_modules.tgz` (which IS committed)
+# and drop package.json so the Apps runtime doesn't try to npm install.
+/.next/*
+!/.next/standalone/
+/.next/standalone/node_modules/
+/.next/standalone/package.json
+/out/
+/build
+
+# TypeScript build info
+*.tsbuildinfo
+next-env.d.ts
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local env (never commit)
+.env
+.env*.local
+.env.local
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+
+# Misc
+.DS_Store
+*.pem
+.turbo
+tsconfig.tsbuildinfo

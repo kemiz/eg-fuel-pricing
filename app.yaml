@@ -1,0 +1,72 @@
+# Databricks Apps runtime manifest for the EG Fuel Price Optimisation MVP.
+#
+# Deploy directly:
+#   databricks apps deploy eg-fuel-pricing \
+#     --source-code-path /Workspace/Users/<you>/eg-fuel-pricing --profile alice
+#
+# Runtime model (matches scripts/build/prepare-databricks-app.mjs):
+#   - The committed `.next/standalone/` bundle ships node_modules.tgz, not a
+#     raw node_modules tree (the Apps egress proxy blocks npm).
+#   - At startup we copy the bundle into $TMPDIR, untar node_modules there,
+#     and run `node server.js`.
+#   - When deploying `.next/standalone/` as the source path directly, Apps
+#     reads the (auto-generated) `.next/standalone/app.yaml` whose command
+#     is paths-relative to that directory.
+
+command:
+  - "sh"
+  - "-c"
+  - "RUNTIME_DIR=${TMPDIR:-/tmp}/eg-app-runtime; rm -rf $RUNTIME_DIR; mkdir -p $RUNTIME_DIR; cp -R .next/standalone/. $RUNTIME_DIR; cd $RUNTIME_DIR; tar --warning=no-unknown-keyword -xzf node_modules.tgz 2>/dev/null || tar -xzf node_modules.tgz; node server.js"
+
+env:
+  # Next.js standalone server reads PORT and HOSTNAME. Databricks Apps provides
+  # DATABRICKS_APP_PORT; HOSTNAME ensures the server binds inside the container.
+  - name: NODE_ENV
+    value: production
+  - name: HOSTNAME
+    value: 0.0.0.0
+  - name: NODE_OPTIONS
+    value: "--max-old-space-size=4096"
+
+  # Workspace host. Literal for standalone git deploys; the resource block
+  # below grants the app service principal access.
+  - name: EG_DATABRICKS_HOST
+    value: https://fe-vm-alice.cloud.databricks.com
+
+  # Lakebase Postgres endpoint. The service principal identity comes from the
+  # Apps runtime.
+  - name: LAKEBASE_ENDPOINT
+    value: projects/eg-fuel-pricing/branches/production/endpoints/primary
+  - name: EG_LAKEBASE_ENDPOINT
+    value: projects/eg-fuel-pricing/branches/production/endpoints/primary
+  - name: PGDATABASE
+    value: eg_fuel_pricing
+  - name: PGPORT
+    value: "5432"
+  - name: EG_LAKEBASE_DB
+    value: eg_fuel_pricing
+  - name: PGSSLMODE
+    value: require
+
+  # EG namespace — app schema for pricing tables.
+  - name: EG_PG_APP_SCHEMA
+    value: eg_app
+
+  # Model Serving endpoints powering the pricing agents. The fast endpoint is
+  # used by the specialist analyst agents; the flagship endpoint synthesises
+  # the final recommendation.
+  - name: EG_LLM_ENDPOINT
+    value: serving-endpoints/databricks-claude-sonnet-4-6/invocations
+  - name: EG_LLM_FAST_ENDPOINT
+    value: serving-endpoints/databricks-claude-haiku-4-5/invocations
+
+# Resource declarations grant the app service principal access on deploy.
+# Runtime config still uses literal env values above so the standalone bundle
+# does not depend on valueFrom injection.
+resources:
+  - name: eg-database
+    description: Lakebase Postgres database backing the EG fuel pricing app schema.
+    postgres:
+      branch: projects/eg-fuel-pricing/branches/production
+      database: projects/eg-fuel-pricing/branches/production/databases/db-eg-fuel-pricing
+      permission: CAN_CONNECT_AND_CREATE
