@@ -45,6 +45,8 @@ interface ChatMsg {
   recommendation?: Recommendation;
   /** A price change applied directly from chat (renders an applied card). */
   applied?: AppliedChange;
+  /** A network-wide bulk apply of current recommendations. */
+  bulkApplied?: BulkApplied;
   followUps?: string[];
   /** Simulated day index this message was sent on (for the inline day stamp). */
   simDay?: number;
@@ -65,6 +67,24 @@ interface AppliedChange {
   /** Modelled daily volume at the site (for the margin-uplift estimate). */
   volume: number | null;
   /** Set when the change was rejected (e.g. below cost). */
+  error?: string;
+}
+
+/** Result of a network-wide bulk apply of the current recommendations. */
+interface BulkApplied {
+  ok: boolean;
+  gradeId: GradeId;
+  rows: {
+    siteId: string;
+    siteName: string;
+    oldPrice: number | null;
+    newPrice: number;
+    margin: number | null;
+  }[];
+  skipped: { siteName: string; reason: string }[];
+  /** Currency/unit of the first applied site (network is single-currency per run). */
+  currency: string;
+  unit: string;
   error?: string;
 }
 
@@ -655,6 +675,96 @@ export function AskAssistant({
     [router]
   );
 
+  /* ----- bulk-apply the current network recommendations (REAL, not narrated) ----- */
+  const runApplyAll = useCallback(
+    async (gradeId: GradeId, assistantId: string) => {
+      const currency = sites[0]?.currency ?? "USD";
+      const unit = sites[0]?.unit ?? "gal";
+      try {
+        const res = await fetch("/api/pricing/apply-all", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ grade: gradeId }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          const bulkApplied: BulkApplied = {
+            ok: false,
+            gradeId,
+            rows: [],
+            skipped: [],
+            currency,
+            unit,
+            error: data.error ?? `Couldn't apply (${res.status}).`,
+          };
+          setMessages((m) =>
+            m.map((msg) => (msg.id === assistantId ? { ...msg, bulkApplied } : msg))
+          );
+          return;
+        }
+        const bulkApplied: BulkApplied = {
+          ok: true,
+          gradeId,
+          rows: (data.applied ?? []).map(
+            (r: {
+              siteId: string;
+              siteName: string;
+              oldPrice: number | null;
+              newPrice: number;
+              margin: number | null;
+            }) => ({
+              siteId: r.siteId,
+              siteName: r.siteName,
+              oldPrice: r.oldPrice,
+              newPrice: r.newPrice,
+              margin: r.margin,
+            })
+          ),
+          skipped: (data.skipped ?? []).map(
+            (s: { siteName: string; reason: string }) => ({
+              siteName: s.siteName,
+              reason: s.reason,
+            })
+          ),
+          currency,
+          unit,
+        };
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === assistantId
+              ? {
+                  ...msg,
+                  bulkApplied,
+                  followUps: [
+                    "How is the network performing now?",
+                    "Show the interventions log",
+                    "Which sites still have headroom?",
+                  ],
+                }
+              : msg
+          )
+        );
+        router.refresh();
+      } catch (e) {
+        const bulkApplied: BulkApplied = {
+          ok: false,
+          gradeId,
+          rows: [],
+          skipped: [],
+          currency,
+          unit,
+          error: (e as Error).message,
+        };
+        setMessages((m) =>
+          m.map((msg) => (msg.id === assistantId ? { ...msg, bulkApplied } : msg))
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [router, sites]
+  );
+
   const submit = useCallback(
     (raw: string) => {
       const text = raw.trim();
@@ -682,6 +792,22 @@ export function AskAssistant({
         : /diesel/i.test(text)
           ? "diesel"
           : "regular";
+
+      // Intent 0: BULK apply — "apply all", "apply these recommendations",
+      // "reprice the network", "apply all five prices", etc. The platform really
+      // commits each current recommendation (and logs interventions); we never
+      // let the LLM narrate a fake bulk apply. Detect this BEFORE the single-site
+      // apply so "apply all" isn't misread as a one-site action.
+      const wantsApplyAll =
+        /\b(apply|commit|push|reprice|roll out|execute)\b/i.test(text) &&
+        /\b(all|every|each|these|those|the (recommendation|recommended|recs|changes|prices)|network[- ]wide|across the network|all five|all \d+)\b/i.test(
+          text
+        ) &&
+        !isQuestion;
+      if (wantsApplyAll) {
+        void runApplyAll(grade, assistantId);
+        return;
+      }
 
       // Intent 1: APPLY a specific price directly ("apply $3.72 to Lancaster",
       // "set regular to 1.45 at <site>", "change Lancaster to $3.72"). We commit
@@ -729,7 +855,7 @@ export function AskAssistant({
         void runChat(history, assistantId);
       }
     },
-    [busy, messages, focusSite, resolveSite, runApply, runAgents, runChat, sim.state?.dayIndex]
+    [busy, messages, focusSite, resolveSite, runApply, runApplyAll, runAgents, runChat, sim.state?.dayIndex]
   );
 
   const ranInitial = useRef(false);
@@ -940,7 +1066,11 @@ export function AskAssistant({
               );
             }
             const isStreamingThis =
-              streaming && m.id === lastMsgId && !m.content && !m.applied;
+              streaming &&
+              m.id === lastMsgId &&
+              !m.content &&
+              !m.applied &&
+              !m.bulkApplied;
             return (
               <div key={m.id} className="flex justify-start gap-2">
                 <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-eg-navy to-eg-navy-700 text-white shadow-md shadow-eg-navy/25">
@@ -952,6 +1082,13 @@ export function AskAssistant({
                   ) : m.applied ? (
                     <>
                       <AppliedCard applied={m.applied} />
+                      {m.followUps && m.followUps.length > 0 && !busy && (
+                        <FollowUpChips items={m.followUps} onAsk={submit} />
+                      )}
+                    </>
+                  ) : m.bulkApplied ? (
+                    <>
+                      <BulkAppliedCard bulk={m.bulkApplied} />
                       {m.followUps && m.followUps.length > 0 && !busy && (
                         <FollowUpChips items={m.followUps} onAsk={submit} />
                       )}
@@ -1571,6 +1708,130 @@ function AppliedStat({
         {label}
       </div>
       <div className={cn("kpi-num mt-0.5 text-sm font-bold", toneText)}>{value}</div>
+    </div>
+  );
+}
+
+/** Confirmation card for a committed network-wide reprice from the chat. */
+function BulkAppliedCard({ bulk: b }: { bulk: BulkApplied }) {
+  const dp = b.currency === "GBP" ? 3 : 2;
+  const symbol = b.currency === "USD" ? "$" : "£";
+  const fmt = (v: number) => `${symbol}${v.toFixed(dp)}`;
+  const gradeLabel = b.gradeId.charAt(0).toUpperCase() + b.gradeId.slice(1);
+
+  if (!b.ok) {
+    return (
+      <div className="eg-tile rounded-2xl rounded-bl-sm border-2 border-eg-red/50 px-3.5 py-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-eg-red">
+          <AlertTriangle size={16} className="shrink-0" />
+          Couldn’t reprice the network
+        </div>
+        <p className="mt-1.5 text-xs text-eg-ink-soft">{b.error}</p>
+      </div>
+    );
+  }
+
+  const applied = b.rows.length;
+  if (applied === 0) {
+    return (
+      <div className="eg-tile rounded-2xl rounded-bl-sm border-2 border-eg-line px-3.5 py-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-eg-ink">
+          <CheckCircle2 size={16} className="shrink-0 text-eg-ink-soft" />
+          Nothing to apply on {gradeLabel}
+        </div>
+        <p className="mt-1.5 text-xs text-eg-ink-soft">
+          Every site already matches its latest recommendation.
+        </p>
+      </div>
+    );
+  }
+
+  const ups = b.rows.filter(
+    (r) => r.oldPrice != null && r.newPrice > r.oldPrice
+  ).length;
+  const downs = b.rows.filter(
+    (r) => r.oldPrice != null && r.newPrice < r.oldPrice
+  ).length;
+  const preview = b.rows.slice(0, 5);
+  const more = applied - preview.length;
+
+  return (
+    <div className="eg-tile rounded-2xl rounded-bl-sm border-2 border-eg-green/50 p-3.5">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-eg-green/15 text-eg-green-600">
+          <CheckCircle2 size={16} />
+        </span>
+        <div>
+          <div className="text-sm font-semibold text-eg-ink">
+            {gradeLabel} repriced across {applied}{" "}
+            {applied === 1 ? "site" : "sites"}
+          </div>
+          <div className="text-[11px] text-eg-green-600">
+            Live on the forecourt
+            {ups > 0 || downs > 0
+              ? ` — ${ups} up, ${downs} down${
+                  applied - ups - downs > 0
+                    ? `, ${applied - ups - downs} unchanged`
+                    : ""
+                }`
+              : ""}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-1">
+        {preview.map((r) => {
+          const vsPrev =
+            r.oldPrice != null ? r.newPrice - r.oldPrice : null;
+          return (
+            <div
+              key={r.siteId}
+              className="flex items-center justify-between gap-2 rounded-lg bg-eg-surface-2/60 px-2.5 py-1.5 text-xs"
+            >
+              <span className="min-w-0 truncate font-medium text-eg-ink">
+                {r.siteName}
+              </span>
+              <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
+                {r.oldPrice != null && (
+                  <span className="text-eg-ink-soft">{fmt(r.oldPrice)}</span>
+                )}
+                <span className="text-eg-ink-soft">→</span>
+                <span className="font-semibold text-eg-ink">{fmt(r.newPrice)}</span>
+                {vsPrev != null && Math.abs(vsPrev) >= 10 ** -dp && (
+                  <span
+                    className={cn(
+                      "font-medium",
+                      vsPrev > 0 ? "text-eg-green-600" : "text-eg-red"
+                    )}
+                  >
+                    {vsPrev > 0 ? "+" : "−"}
+                    {fmt(Math.abs(vsPrev))}
+                  </span>
+                )}
+              </span>
+            </div>
+          );
+        })}
+        {more > 0 && (
+          <div className="px-1 pt-0.5 text-[11px] text-eg-ink-soft">
+            +{more} more {more === 1 ? "site" : "sites"}
+          </div>
+        )}
+      </div>
+
+      {b.skipped.length > 0 && (
+        <div className="mt-2.5 flex items-start gap-1.5 rounded-lg bg-eg-red/8 px-2.5 py-2 text-[11px] text-eg-ink-soft">
+          <AlertTriangle size={13} className="mt-0.5 shrink-0 text-eg-red" />
+          <span>
+            {b.skipped.length} skipped:{" "}
+            {b.skipped
+              .slice(0, 3)
+              .map((s) => `${s.siteName} (${s.reason})`)
+              .join("; ")}
+            {b.skipped.length > 3 ? `; +${b.skipped.length - 3} more` : ""}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

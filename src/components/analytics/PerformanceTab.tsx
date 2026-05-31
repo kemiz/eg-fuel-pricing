@@ -57,13 +57,35 @@ const fmtDay = (d: string) =>
  * Below, every applied price change is logged with its realized per-unit-margin
  * impact so you can see whether the recommendations and changes executed well.
  */
+/** Rolling window options for the trend charts (in days). null = whole run. */
+const WINDOWS: { id: string; label: string; days: number | null }[] = [
+  { id: "7", label: "7D", days: 7 },
+  { id: "30", label: "30D", days: 30 },
+  { id: "90", label: "90D", days: 90 },
+  { id: "all", label: "All", days: null },
+];
+
+const winLabel = (w: { days: number | null }) =>
+  w.days == null ? " · full run" : ` · last ${w.days} days`;
+
 export function PerformanceTab({ performance }: { performance: PerformanceData }) {
   const [country, setCountry] = useState<Country>("US");
+  const [windowId, setWindowId] = useState<string>("30");
   const active =
     performance.countries.find((c) => c.country === country) ??
     performance.countries[0];
 
   const hasRun = performance.dayIndex > 0 && active.trend.length > 0;
+
+  // Slice the trend to the selected rolling window (most recent N days). The
+  // cumulative chart then re-bases its running total to the window start, so
+  // the charts show a fixed window of recent activity instead of an ever-
+  // growing stack since day 0.
+  const win = WINDOWS.find((w) => w.id === windowId) ?? WINDOWS[1];
+  const windowedTrend = useMemo(() => {
+    if (win.days == null || active.trend.length <= win.days) return active.trend;
+    return active.trend.slice(-win.days);
+  }, [active.trend, win.days]);
 
   return (
     <div className="space-y-6">
@@ -85,10 +107,31 @@ export function PerformanceTab({ performance }: { performance: PerformanceData }
             </button>
           ))}
         </div>
-        <span className="hidden text-xs text-eg-ink-soft sm:inline">
-          Tracking period · {active.totals.days}{" "}
-          {active.totals.days === 1 ? "day" : "days"} · regular grade
-        </span>
+        <div className="flex items-center gap-3">
+          {hasRun && (
+            <div className="inline-flex items-center gap-1 rounded-xl border border-eg-line bg-eg-surface/60 p-1 backdrop-blur">
+              {WINDOWS.map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => setWindowId(w.id)}
+                  className={cn(
+                    "rounded-lg px-3 py-1 text-xs font-medium transition-colors",
+                    windowId === w.id
+                      ? "bg-eg-navy text-white shadow-sm"
+                      : "text-eg-ink-soft hover:text-eg-ink"
+                  )}
+                >
+                  {w.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <span className="hidden text-xs text-eg-ink-soft sm:inline">
+            Tracking period · {active.totals.days}{" "}
+            {active.totals.days === 1 ? "day" : "days"} · regular grade
+          </span>
+        </div>
       </div>
 
       {!hasRun ? (
@@ -115,11 +158,11 @@ export function PerformanceTab({ performance }: { performance: PerformanceData }
           <Card>
             <SectionHeader
               eyebrow="Cumulative"
-              title="Margin pool earned vs no active pricing"
-              description="Running total of daily fuel margin over the tracking period. The dashed line is the counterfactual — what the network would have earned simply passing each day's cost through at its starting margin. The gap is the uplift from active pricing."
+              title={`Margin pool earned vs no active pricing${winLabel(win)}`}
+              description="Running total of daily fuel margin over the selected window. The dashed line is the counterfactual — what the network would have earned simply passing each day's cost through at its starting margin. The gap is the uplift from active pricing."
             />
             <SimRefreshing className="mt-4">
-              <CumulativeUpliftChart trend={active.trend} currency={active.currency} />
+              <CumulativeUpliftChart trend={windowedTrend} currency={active.currency} />
             </SimRefreshing>
           </Card>
 
@@ -131,17 +174,17 @@ export function PerformanceTab({ performance }: { performance: PerformanceData }
                 description="Per-day margin pool above (green) or below (red) the cost-pass-through counterfactual. Expect a mix — some days the simpler policy wins."
               />
               <SimRefreshing className="mt-4">
-                <DailyUpliftChart trend={active.trend} currency={active.currency} />
+                <DailyUpliftChart trend={windowedTrend} currency={active.currency} />
               </SimRefreshing>
             </Card>
             <Card>
               <SectionHeader
                 eyebrow="Throughput"
                 title="Daily volume & avg per-unit margin"
-                description="How fuel volume and the per-unit margin have moved over the run."
+                description="How fuel volume and the per-unit margin have moved over the window."
               />
               <SimRefreshing className="mt-4">
-                <VolumeMarginChart trend={active.trend} currency={active.currency} unit={active.unit} />
+                <VolumeMarginChart trend={windowedTrend} currency={active.currency} unit={active.unit} />
               </SimRefreshing>
             </Card>
           </div>
