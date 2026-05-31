@@ -132,6 +132,43 @@ interface AgentEvent {
 let _id = 0;
 const nextId = () => `m${++_id}`;
 
+/**
+ * Turn a chat message into text for the LLM history. Action-bearing turns
+ * (a committed single apply, a committed network-wide bulk apply, or a fresh
+ * agent recommendation) carry their detail in structured fields, not in
+ * `content` — so without this the model sees an empty assistant turn and, when
+ * later asked "did you apply that?", wrongly answers "no". We synthesise a
+ * compact factual summary so the model knows exactly what the PLATFORM already
+ * committed and can answer follow-ups truthfully.
+ */
+function serializeForLLM(m: ChatMsg): string {
+  if (m.applied?.ok) {
+    const a = m.applied;
+    const sym = a.currency === "USD" ? "$" : "£";
+    return `[PLATFORM ACTION — COMMITTED] Applied ${a.gradeId} = ${sym}${a.price} at ${a.siteName}${
+      a.oldPrice != null ? ` (was ${sym}${a.oldPrice})` : ""
+    }. This price is now live on the forecourt.`;
+  }
+  if (m.bulkApplied?.ok) {
+    const b = m.bulkApplied;
+    const sym = b.currency === "USD" ? "$" : "£";
+    const applied = b.rows.length;
+    const ups = b.rows.filter((r) => r.oldPrice != null && r.newPrice > r.oldPrice).length;
+    const downs = b.rows.filter((r) => r.oldPrice != null && r.newPrice < r.oldPrice).length;
+    const sample = b.rows
+      .slice(0, 4)
+      .map((r) => `${r.siteName} ${sym}${r.newPrice}`)
+      .join(", ");
+    const skipped = b.skipped.length ? ` ${b.skipped.length} site(s) were skipped.` : "";
+    return `[PLATFORM ACTION — COMMITTED] Network-wide bulk apply of ${b.gradeId}: repriced ${applied} site(s) (${ups} up, ${downs} down). These prices are now live on the forecourt. e.g. ${sample}.${skipped}`;
+  }
+  if (m.recommendation) {
+    const r = m.recommendation;
+    return `[AGENT RECOMMENDATION — NOT YET APPLIED] Recommended ${r.gradeId} = ${r.recommendedPrice} for site ${r.siteId}. ${m.content || r.rationale || ""}`.trim();
+  }
+  return m.content;
+}
+
 /** sessionStorage key prefix for persisted chat sessions. */
 const CHAT_STORE_PREFIX = "eg-chat:";
 
@@ -510,7 +547,10 @@ export function AskAssistant({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: history.map((m) => ({ role: m.role, content: m.content })),
+            messages: history.map((m) => ({
+              role: m.role,
+              content: serializeForLLM(m),
+            })),
             siteId: focusSite?.siteId,
           }),
           signal: ctrl.signal,

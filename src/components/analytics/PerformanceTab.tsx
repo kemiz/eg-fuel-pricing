@@ -596,9 +596,21 @@ function InterventionRowView({
   const priceMove =
     i.priceDelta == null ? null : i.priceDelta > 0 ? "up" : i.priceDelta < 0 ? "down" : "flat";
 
+  // Surface freshness so an apply is obviously reflected: rows applied on the
+  // current day are flagged "New" and tinted; the last couple of days get a
+  // softer tint. daysSince = current sim day − the day this change landed.
+  const isNew = i.daysSince <= 0;
+  const isRecent = i.daysSince > 0 && i.daysSince <= 2;
+
   return (
-    <tr className="border-t border-eg-line align-top transition-colors hover:bg-eg-surface-2/60">
-      <td className="px-5 py-3">
+    <tr
+      className={cn(
+        "border-t border-eg-line align-top transition-colors hover:bg-eg-surface-2/60",
+        isNew && "bg-eg-green/8",
+        isRecent && "bg-eg-navy/[0.04]"
+      )}
+    >
+      <td className={cn("px-5 py-3", isNew && "border-l-2 border-l-eg-green")}>
         <Link
           href={`/site/${i.siteId}`}
           className="font-medium text-eg-ink hover:text-eg-navy"
@@ -616,7 +628,14 @@ function InterventionRowView({
         </span>
       </td>
       <td className="kpi-num px-2 py-3 text-right text-eg-ink-soft">
-        {i.dayIndex}
+        <span className="inline-flex items-center justify-end gap-1.5">
+          {isNew && (
+            <span className="rounded-full bg-eg-green/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-eg-green-600">
+              New
+            </span>
+          )}
+          {i.dayIndex}
+        </span>
       </td>
       <td className="kpi-num px-2 py-3 text-right">
         {i.newPrice == null ? (
