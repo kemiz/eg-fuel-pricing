@@ -32,8 +32,18 @@ CREATE TABLE IF NOT EXISTS eg_app.sim_state (
   running     BOOLEAN NOT NULL DEFAULT false,
   speed_ms    INT NOT NULL DEFAULT 3000, -- auto-advance interval the client uses
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Wall-clock deadline for the NEXT auto-advance. The shared-clock tick fires a
+  -- day only once now() passes this, then schedules the next deadline a fixed
+  -- speed_ms later. Anchoring the cadence to an absolute schedule (not to the
+  -- time a poll happens to detect "due") makes the advance rate independent of
+  -- how many tabs/users are polling — so the clock never speeds up with more
+  -- viewers. Nullable: NULL means "advance on the first due tick after play".
+  next_advance_at TIMESTAMPTZ,
   CONSTRAINT sim_state_singleton CHECK (id = 1)
 );
+-- Additive for existing DBs created before next_advance_at existed.
+ALTER TABLE eg_app.sim_state
+  ADD COLUMN IF NOT EXISTS next_advance_at TIMESTAMPTZ;
 
 -- Day-stamped market events (shocks the engine emits) so the UI can surface
 -- "what happened" as the clock advances.

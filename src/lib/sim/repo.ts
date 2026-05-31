@@ -549,18 +549,27 @@ export async function applyStep(days = 1): Promise<SimState> {
 
 /**
  * Shared-clock tick. Any client may call this on a short interval; the clock
- * only actually advances when it is `running` AND at least `speed_ms` has
- * elapsed since the last advance. Because the check + advance happen inside the
- * advisory-locked transaction (and the advance bumps updated_at), exactly one
- * day is produced per `speed_ms` regardless of how many browser tabs are
- * ticking. Returns the (possibly unchanged) state plus whether it stepped.
+ * advances at most one day per call and only when it is `running` AND the
+ * scheduled deadline (`next_advance_at`) has passed.
+ *
+ * The cadence is anchored to an ABSOLUTE schedule, not to the wall-clock time a
+ * poll happens to detect "due": after each advance we set the next deadline to
+ * `GREATEST(now(), next_advance_at) + speed_ms`. Advancing the deadline by a
+ * fixed `speed_ms` (rather than resetting it to `now()`) means polling jitter
+ * does not accumulate, so a day lands every `speed_ms` regardless of HOW MANY
+ * tabs/users are polling — the rate no longer drifts with viewer count. The
+ * `GREATEST(now(), …)` floor re-anchors after a long idle gap (e.g. everyone
+ * closed their tabs) so the clock resumes cleanly instead of bursting through a
+ * backlog of missed days. The whole check+advance runs under an advisory lock,
+ * so concurrent ticks can never double-advance. Returns the (possibly
+ * unchanged) state plus whether it stepped.
  */
 export async function tickIfDue(): Promise<{ state: SimState; stepped: boolean }> {
   return pgTransaction(async (q) => {
     await q(`SELECT pg_advisory_xact_lock($1)`, [SIM_LOCK]);
     const rows = await q(
       `SELECT sim_date, day_index, running, speed_ms,
-              (now() - updated_at) >= (speed_ms * interval '1 millisecond') AS due
+              (next_advance_at IS NULL OR now() >= next_advance_at) AS due
          FROM ${APP("sim_state")} WHERE id = 1 FOR UPDATE`
     );
     if (!rows.length) {
@@ -573,35 +582,85 @@ export async function tickIfDue(): Promise<{ state: SimState; stepped: boolean }
       return { state, stepped: false };
     }
     const next = await advanceDays(q, state, 1);
+    // Schedule the next advance on a fixed cadence (poll-rate independent).
+    await q(
+      `UPDATE ${APP("sim_state")}
+          SET next_advance_at =
+                GREATEST(now(), COALESCE(next_advance_at, now()))
+                + (speed_ms * interval '1 millisecond')
+        WHERE id = 1`
+    );
     return { state: next, stepped: true };
   });
 }
 
-/** Set running/speed flags (client uses these to drive auto-advance). */
+/**
+ * Set running/speed flags (client uses these to drive auto-advance).
+ *
+ * Also (re)anchors the absolute advance schedule (`next_advance_at`) so the
+ * shared clock paces consistently no matter how many tabs poll:
+ *  - Pressing play (running→true) sets the next deadline one full cadence out
+ *    (now + effective speed_ms), so the first auto-day waits a complete cycle
+ *    and matches the on-screen countdown.
+ *  - Changing speed while running re-anchors the deadline to the new cadence
+ *    immediately, rather than honouring a stale (possibly very long) deadline.
+ *  - Pausing clears the deadline so the next play re-anchors from scratch.
+ * Runs in one advisory-locked transaction with the schedule read so it can't
+ * race a concurrent tick.
+ */
 export async function setSimFlags(opts: {
   running?: boolean;
   speedMs?: number;
 }): Promise<SimState> {
-  const sets: string[] = [];
-  const params: unknown[] = [];
-  let p = 0;
-  if (opts.running != null) {
-    sets.push(`running = $${++p}`);
-    params.push(opts.running);
-  }
-  if (opts.speedMs != null) {
-    // Allow up to 5 min/day so the slow speeds in the UI actually apply.
-    sets.push(`speed_ms = $${++p}`);
-    params.push(Math.max(500, Math.min(600000, Math.round(opts.speedMs))));
-  }
-  if (sets.length) {
-    sets.push(`updated_at = now()`);
-    await pgQuery(
-      `UPDATE ${APP("sim_state")} SET ${sets.join(", ")} WHERE id = 1`,
-      params
+  return pgTransaction(async (q) => {
+    await q(`SELECT pg_advisory_xact_lock($1)`, [SIM_LOCK]);
+    const cur = await q(
+      `SELECT running, speed_ms FROM ${APP("sim_state")} WHERE id = 1 FOR UPDATE`
     );
-  }
-  return getSimState();
+    const wasRunning = cur.length ? Boolean(cur[0].running) : false;
+    const curSpeed = cur.length ? Number(cur[0].speed_ms) : 3000;
+
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    let p = 0;
+    if (opts.running != null) {
+      sets.push(`running = $${++p}`);
+      params.push(opts.running);
+    }
+    const effectiveSpeed =
+      opts.speedMs != null
+        ? Math.max(500, Math.min(600000, Math.round(opts.speedMs)))
+        : curSpeed;
+    if (opts.speedMs != null) {
+      // Allow up to 5 min/day so the slow speeds in the UI actually apply.
+      sets.push(`speed_ms = $${++p}`);
+      params.push(effectiveSpeed);
+    }
+
+    const willRun = opts.running != null ? opts.running : wasRunning;
+    // Decide the schedule anchor:
+    //  - not running → clear it (next play re-anchors)
+    //  - starting to run, or changing speed while running → fresh one-cadence
+    //    deadline so pacing is exact and immediate
+    //  - otherwise leave the existing deadline untouched
+    if (!willRun) {
+      sets.push(`next_advance_at = NULL`);
+    } else if ((opts.running === true && !wasRunning) || opts.speedMs != null) {
+      sets.push(
+        `next_advance_at = now() + ($${++p} * interval '1 millisecond')`
+      );
+      params.push(effectiveSpeed);
+    }
+
+    if (sets.length) {
+      sets.push(`updated_at = now()`);
+      await q(
+        `UPDATE ${APP("sim_state")} SET ${sets.join(", ")} WHERE id = 1`,
+        params
+      );
+    }
+    return getSimStateTx(q);
+  });
 }
 
 /**
@@ -680,7 +739,8 @@ export async function resetSim(): Promise<SimState> {
       );
       await q(
         `UPDATE ${APP("sim_state")} SET sim_date = $1, day_index = 0,
-                running = false, updated_at = now() WHERE id = 1`,
+                running = false, next_advance_at = NULL, updated_at = now()
+          WHERE id = 1`,
         [baseIso]
       );
     }
