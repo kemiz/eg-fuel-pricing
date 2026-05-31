@@ -62,13 +62,25 @@ export async function POST(req: NextRequest) {
       try {
         const recommendation = await runPricingAgents(snapshot, grade, send);
 
-        // Persist the recommendation.
+        // Persist the recommendation. Stamp the current simulated day so its
+        // age renders against the moving sim clock, not real wall-clock time.
         try {
+          let simDayIndex: number | null = null;
+          try {
+            const clock = await pgQuery<{ day_index: number | null }>(
+              `SELECT day_index FROM ${APP("sim_state")} WHERE id = 1`
+            );
+            simDayIndex =
+              clock[0]?.day_index == null ? null : Number(clock[0].day_index);
+          } catch {
+            /* sim_state may not exist yet — leave null */
+          }
           await pgQuery(
             `INSERT INTO ${APP("price_recommendations")}
                (site_id, grade_id, recommended_price, rationale,
-                projected_margin, projected_volume, confidence, per_agent_notes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+                projected_margin, projected_volume, confidence, per_agent_notes,
+                sim_day_index)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)`,
             [
               recommendation.siteId,
               recommendation.gradeId,
@@ -78,6 +90,7 @@ export async function POST(req: NextRequest) {
               recommendation.projectedVolume,
               recommendation.confidence,
               JSON.stringify(recommendation.perAgentNotes),
+              simDayIndex,
             ]
           );
           send({ type: "status", message: "Recommendation saved." });

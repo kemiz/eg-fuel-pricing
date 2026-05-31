@@ -7,21 +7,43 @@
 /* Light theme (default)                                                  */
 /* ---------------------------------------------------------------------- */
 :root {
-  /* EG Group corporate identity: deep navy + red accent. */
-  --eg-navy: #0a1f44;
-  --eg-navy-600: #143063;
-  --eg-navy-700: #07173a;
-  --eg-red: #e4002b;
-  --eg-red-600: #c20025;
+  /* EG Group corporate identity: brand blue (#005fab) + brand green (#91b508).
+     The `--eg-navy` token keeps its name for backwards-compat but now carries
+     the EG blue used across the official logo and site. */
+  --eg-navy: #005fab;          /* EG brand blue (primary) */
+  --eg-navy-600: #0a4f8a;
+  --eg-navy-700: #073a66;
+  --eg-green: #91b508;         /* EG brand green (positive accent) */
+  --eg-green-600: #7a9a06;
+  --eg-red: #d6263b;           /* semantic "dearer / over guardrail" */
+  --eg-red-600: #b81d30;
 
-  /* Semantic surfaces / text. */
-  --eg-ink: #0f172a;            /* primary text */
-  --eg-ink-soft: #51607a;       /* secondary text */
-  --eg-paper: #f4f6fb;          /* page background */
-  --eg-line: #dfe5f0;           /* hairline borders */
+  /* Semantic surfaces / text. Cooler, higher-contrast neutrals for legibility. */
+  --eg-ink: #111827;            /* primary text */
+  --eg-ink-soft: #566175;       /* secondary text */
+  --eg-paper: #eef3fb;          /* page background (aurora shows through) */
+  --eg-line: #dde4ee;           /* hairline borders */
   --eg-surface: #ffffff;        /* cards / panels */
-  --eg-surface-2: #eef2f9;      /* alt panel / table stripe */
+  --eg-surface-2: #eef3f9;      /* alt panel / table stripe */
   --eg-surface-raised: #ffffff;
+
+  /* --- Glassmorphism --- */
+  /* Translucent surface tint + frosted blur. Kept fairly opaque so body text
+     stays readable over the aurora backdrop. */
+  --eg-glass-bg: rgba(255, 255, 255, 0.62);
+  --eg-glass-bg-strong: rgba(255, 255, 255, 0.8);
+  --eg-glass-border: rgba(255, 255, 255, 0.7);
+  --eg-glass-shadow: 0 10px 30px -12px rgba(7, 58, 102, 0.28);
+  --eg-glass-blur: 16px;
+  --eg-header-glass: rgba(0, 73, 134, 0.55);
+
+  /* Inner frosted tile (cards inside a glass panel) + sheen highlight. */
+  --eg-tile-bg: rgba(255, 255, 255, 0.55);
+  --eg-tile-bg-hover: rgba(255, 255, 255, 0.78);
+  --eg-tile-border: rgba(255, 255, 255, 0.65);
+  --eg-tile-shadow: 0 6px 20px -10px rgba(7, 58, 102, 0.22);
+  --eg-tile-shadow-hover: 0 14px 34px -12px rgba(7, 58, 102, 0.32);
+  --eg-sheen: rgba(255, 255, 255, 0.55);
 
   --background: var(--eg-paper);
   --foreground: var(--eg-ink);
@@ -40,19 +62,37 @@
 /* ---------------------------------------------------------------------- */
 :root[data-theme="dark"],
 .dark {
-  --eg-navy: #4c7df0;
-  --eg-navy-600: #3f6fe0;
-  --eg-navy-700: #6b97f5;
-  --eg-red: #ff5a6e;
-  --eg-red-600: #ff7384;
+  --eg-navy: #4aa3e8;          /* lightened EG blue for dark surfaces */
+  --eg-navy-600: #2f8fdc;
+  --eg-navy-700: #6fb6ef;
+  --eg-green: #aace2e;
+  --eg-green-600: #93b81d;
+  --eg-red: #ff6072;
+  --eg-red-600: #ff7888;
 
-  --eg-ink: #f4f7fb;
+  --eg-ink: #f3f6fb;
   --eg-ink-soft: #9aa7bd;
-  --eg-paper: #060912;
-  --eg-line: #1e2638;
-  --eg-surface: #0f1626;
-  --eg-surface-2: #141d30;
-  --eg-surface-raised: #1a2438;
+  --eg-paper: #060a12;
+  --eg-line: #1e2838;
+  --eg-surface: #101724;
+  --eg-surface-2: #161f30;
+  --eg-surface-raised: #1a2336;
+
+  /* --- Glassmorphism (dark) --- */
+  --eg-glass-bg: rgba(20, 30, 48, 0.5);
+  --eg-glass-bg-strong: rgba(20, 30, 48, 0.74);
+  --eg-glass-border: rgba(255, 255, 255, 0.12);
+  --eg-glass-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.78);
+  --eg-glass-blur: 20px;
+  --eg-header-glass: rgba(8, 24, 45, 0.55);
+
+  /* Inner frosted tile (dark) — lifted, luminous, with a top sheen. */
+  --eg-tile-bg: rgba(34, 47, 70, 0.46);
+  --eg-tile-bg-hover: rgba(46, 62, 92, 0.62);
+  --eg-tile-border: rgba(255, 255, 255, 0.08);
+  --eg-tile-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.7);
+  --eg-tile-shadow-hover: 0 18px 40px -16px rgba(0, 0, 0, 0.8);
+  --eg-sheen: rgba(255, 255, 255, 0.14);
 
   --background: var(--eg-paper);
   --foreground: var(--eg-ink);
@@ -72,6 +112,8 @@
   --color-eg-navy: var(--eg-navy);
   --color-eg-navy-600: var(--eg-navy-600);
   --color-eg-navy-700: var(--eg-navy-700);
+  --color-eg-green: var(--eg-green);
+  --color-eg-green-600: var(--eg-green-600);
   --color-eg-red: var(--eg-red);
   --color-eg-red-600: var(--eg-red-600);
   --color-eg-ink: var(--eg-ink);
@@ -86,12 +128,22 @@
   --font-mono: var(--font-geist-mono);
 }
 
-html,
-body {
+html {
   background: var(--eg-paper);
+}
+body {
+  /* Transparent so the fixed .eg-aurora layer shows through behind glass. */
+  background: transparent;
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
+  /* More readable defaults: comfortable size + line-height, crisp rendering. */
+  font-size: 15px;
+  line-height: 1.55;
+  letter-spacing: -0.006em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   color-scheme: light;
 }
 
@@ -116,11 +168,143 @@ textarea::placeholder {
   color: var(--eg-ink);
 }
 
-/* Card ring used throughout the prototype. */
+/* Card ring used throughout the prototype — frosted glass surface. */
 .card {
-  background: var(--eg-surface);
-  border: 1px solid var(--eg-line);
+  background: var(--eg-glass-bg);
+  -webkit-backdrop-filter: blur(var(--eg-glass-blur)) saturate(140%);
+  backdrop-filter: blur(var(--eg-glass-blur)) saturate(140%);
+  border: 1px solid var(--eg-glass-border);
+  border-radius: 16px;
+  box-shadow: var(--eg-glass-shadow);
+}
+
+/* Reusable glass panel + a more opaque variant for text-dense surfaces. */
+.eg-glass {
+  background: var(--eg-glass-bg);
+  -webkit-backdrop-filter: blur(var(--eg-glass-blur)) saturate(140%);
+  backdrop-filter: blur(var(--eg-glass-blur)) saturate(140%);
+  border: 1px solid var(--eg-glass-border);
+  box-shadow: var(--eg-glass-shadow);
+}
+.eg-glass-strong {
+  background: var(--eg-glass-bg-strong);
+}
+
+/* Floating composer: genuinely frosted — heavier blur + a brightening sheen
+   over a low-opacity tint so the aurora/content reads through it as glass,
+   with a soft highlight border and a strong lift shadow. Light theme is the
+   default; the dark override follows below. */
+.eg-glass-input {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.46)),
+    rgba(255, 255, 255, 0.3);
+  -webkit-backdrop-filter: blur(26px) saturate(160%);
+  backdrop-filter: blur(26px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 18px 44px -16px rgba(7, 58, 102, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+:root[data-theme="dark"] .eg-glass-input,
+.dark .eg-glass-input {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 18px 48px -16px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.eg-glass-input:focus-within {
+  border-color: var(--eg-navy);
+}
+
+/* Frosted inner tile — sits inside a glass panel (briefing cards, chart shells,
+   message bubbles). Lighter blur than the outer panel, with a soft top sheen
+   and a lift-on-hover affordance. */
+.eg-tile {
+  position: relative;
+  background: var(--eg-tile-bg);
+  -webkit-backdrop-filter: blur(10px) saturate(135%);
+  backdrop-filter: blur(10px) saturate(135%);
+  border: 1px solid var(--eg-tile-border);
   border-radius: 14px;
+  box-shadow: var(--eg-tile-shadow);
+  overflow: hidden;
+  transition: background 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease,
+    border-color 0.22s ease;
+}
+/* A thin luminous edge along the top — the classic "glass" highlight. */
+.eg-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--eg-sheen) 30%,
+    var(--eg-sheen) 70%,
+    transparent
+  );
+  pointer-events: none;
+}
+.eg-tile-hover:hover {
+  background: var(--eg-tile-bg-hover);
+  box-shadow: var(--eg-tile-shadow-hover);
+  border-color: color-mix(in srgb, var(--eg-navy) 35%, var(--eg-tile-border));
+  transform: translateY(-2px);
+}
+
+/* Frosted pill — suggestion / follow-up chips. */
+.eg-chip {
+  background: var(--eg-tile-bg);
+  -webkit-backdrop-filter: blur(8px) saturate(130%);
+  backdrop-filter: blur(8px) saturate(130%);
+  border: 1px solid var(--eg-tile-border);
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease,
+    transform 0.18s ease;
+}
+.eg-chip:hover {
+  background: var(--eg-tile-bg-hover);
+  border-color: color-mix(in srgb, var(--eg-navy) 45%, var(--eg-tile-border));
+  transform: translateY(-1px);
+}
+
+/* Progressive enhancement: if the browser can't blur, fall back to the solid
+   surface so nothing turns unreadable. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card,
+  .eg-glass,
+  .eg-tile,
+  .eg-chip {
+    background: var(--eg-surface);
+    border-color: var(--eg-line);
+  }
+  .eg-tile-hover:hover {
+    background: var(--eg-surface-2);
+  }
+}
+
+/* Aurora backdrop the frosted panels blur over. Fixed, behind everything. */
+.eg-aurora {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(42rem 42rem at 12% -8%, rgba(0, 95, 171, 0.28), transparent 60%),
+    radial-gradient(36rem 36rem at 92% 4%, rgba(145, 181, 8, 0.22), transparent 60%),
+    radial-gradient(40rem 40rem at 78% 92%, rgba(0, 95, 171, 0.18), transparent 62%),
+    radial-gradient(30rem 30rem at 18% 96%, rgba(145, 181, 8, 0.16), transparent 60%);
+}
+:root[data-theme="dark"] .eg-aurora,
+.dark .eg-aurora {
+  background:
+    radial-gradient(44rem 44rem at 10% -10%, rgba(0, 95, 171, 0.4), transparent 60%),
+    radial-gradient(36rem 36rem at 94% 2%, rgba(145, 181, 8, 0.18), transparent 60%),
+    radial-gradient(42rem 42rem at 82% 96%, rgba(0, 95, 171, 0.26), transparent 62%);
 }
 
 .kpi-num {
@@ -128,9 +312,24 @@ textarea::placeholder {
   letter-spacing: -0.02em;
 }
 
-/* EG hero gradient — navy ramp. */
+/* EG hero gradient — brand-blue ramp with a green edge highlight. */
 .eg-gradient {
-  background: linear-gradient(120deg, #07173a 0%, #0a1f44 55%, #143063 100%);
+  background: linear-gradient(115deg, #073a66 0%, #005fab 60%, #1f7bc4 100%);
+}
+
+/* Frosted brand header: translucent EG blue with blur so content scrolls
+   underneath it. White header text stays readable on the dark-blue tint. */
+.eg-glass-header {
+  background:
+    linear-gradient(
+      115deg,
+      rgba(7, 58, 102, 0.72) 0%,
+      rgba(0, 95, 171, 0.62) 60%,
+      rgba(31, 123, 196, 0.6) 100%
+    );
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 /* Price-delta chips. */
@@ -151,18 +350,130 @@ textarea::placeholder {
 }
 .eg-caret { animation: eg-blink 1s step-end infinite; }
 
-/* Thin scrollbars for chat / panels. */
+/* -------------------------------------------------------------------------- */
+/* Simulation update affordances: shimmer while refreshing + change flash      */
+/* -------------------------------------------------------------------------- */
+
+/* Shimmer sweep overlay shown on data surfaces while a sim tick is in flight.
+   Sits on a positioned parent; pointer-events disabled so it never blocks. */
+@keyframes eg-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.eg-shimmer-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.eg-shimmer-overlay::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--eg-navy) 14%, transparent) 50%,
+    transparent 80%
+  );
+  transform: translateX(-100%);
+  animation: eg-shimmer 1.1s ease-in-out infinite;
+}
+/* Dim + soften the live content underneath while updating. */
+.eg-updating {
+  opacity: 0.72;
+  filter: saturate(0.9);
+  transition: opacity 0.2s ease;
+}
+
+/* Standalone skeleton block (for first-load / no-data placeholders). */
+@keyframes eg-skel {
+  0% { background-position: -180% 0; }
+  100% { background-position: 180% 0; }
+}
+.eg-skeleton {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--eg-ink) 7%, transparent) 25%,
+    color-mix(in srgb, var(--eg-ink) 13%, transparent) 37%,
+    color-mix(in srgb, var(--eg-ink) 7%, transparent) 63%
+  );
+  background-size: 280% 100%;
+  animation: eg-skel 1.3s ease-in-out infinite;
+}
+
+/* Change flash: a brief tinted highlight on a cell whose value changed since
+   the previous simulated day. Colour encodes direction (up=good, down=bad). */
+@keyframes eg-flash-good {
+  0% { background-color: color-mix(in srgb, var(--eg-green) 38%, transparent); }
+  100% { background-color: transparent; }
+}
+@keyframes eg-flash-bad {
+  0% { background-color: color-mix(in srgb, var(--eg-red) 34%, transparent); }
+  100% { background-color: transparent; }
+}
+@keyframes eg-flash-neutral {
+  0% { background-color: color-mix(in srgb, var(--eg-navy) 30%, transparent); }
+  100% { background-color: transparent; }
+}
+.eg-flash-good { animation: eg-flash-good 1.4s ease-out; border-radius: 6px; }
+.eg-flash-bad { animation: eg-flash-bad 1.4s ease-out; border-radius: 6px; }
+.eg-flash-neutral { animation: eg-flash-neutral 1.4s ease-out; border-radius: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .eg-shimmer-overlay::after,
+  .eg-skeleton { animation: none; }
+  .eg-flash-good, .eg-flash-bad, .eg-flash-neutral { animation-duration: 0.01ms; }
+}
+
+/* Overlay scrollbars: hidden until you hover/scroll the panel, then a thin
+   thumb fades in. Keeps the chat surface clean (no always-on rail). */
+.eg-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s ease;
+}
+.eg-scroll:hover,
+.eg-scroll:focus-within {
+  scrollbar-color: var(--eg-line) transparent;
+}
 .eg-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
 .eg-scroll::-webkit-scrollbar-thumb {
-  background: var(--eg-line);
+  background: transparent;
   border-radius: 8px;
+  transition: background 0.2s ease;
+}
+.eg-scroll:hover::-webkit-scrollbar-thumb,
+.eg-scroll:focus-within::-webkit-scrollbar-thumb {
+  background: var(--eg-line);
 }
 .eg-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* Soft-fade the bottom of the chat scroll area so messages dissolve as they
+   pass behind the floating input — no colored overlay, just a transparency
+   mask, so it works over the aurora background with no hard edges. */
+.eg-fade-bottom {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - 5.5rem),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - 5.5rem),
+    transparent 100%
+  );
+}
 
 /* -------------------------------------------------------------------- */
 /* Assistant markdown (Stride-style inline rendering)                     */
 /* -------------------------------------------------------------------- */
-.eg-md { font-size: 0.875rem; line-height: 1.6; color: var(--eg-ink); }
+.eg-md { font-size: 0.9rem; line-height: 1.65; color: var(--eg-ink); }
 .eg-md > :first-child { margin-top: 0; }
 .eg-md > :last-child { margin-bottom: 0; }
 .eg-md p { margin: 0 0 0.5rem; }
@@ -179,7 +490,7 @@ textarea::placeholder {
 .eg-md em { font-style: italic; }
 .eg-md hr { margin: 0.75rem 0; border: 0; border-top: 1px solid var(--eg-line); }
 .eg-md blockquote {
-  border-left: 3px solid var(--eg-red); padding-left: 0.6rem; margin: 0 0 0.5rem;
+  border-left: 3px solid var(--eg-navy); padding-left: 0.6rem; margin: 0 0 0.5rem;
   color: var(--eg-ink-soft); font-style: italic;
 }
 .eg-md code {

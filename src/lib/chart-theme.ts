@@ -19,33 +19,33 @@ export interface ChartTheme {
 }
 
 const LIGHT: ChartTheme = {
-  grid: "#e6ebf5",
+  grid: "#e4ebf4",
   axis: "#7c8aa3",
-  navy: "#0a1f44",
-  navySoft: "rgba(20, 48, 99, 0.16)",
-  red: "#e4002b",
-  redSoft: "rgba(228, 0, 43, 0.14)",
-  green: "#0f9d58",
-  greenSoft: "rgba(15, 157, 88, 0.16)",
+  navy: "#005fab",
+  navySoft: "rgba(0, 95, 171, 0.14)",
+  red: "#d6263b",
+  redSoft: "rgba(214, 38, 59, 0.14)",
+  green: "#91b508",
+  greenSoft: "rgba(145, 181, 8, 0.18)",
   amber: "#e8a23d",
   tooltipBg: "#ffffff",
-  tooltipBorder: "#dfe5f0",
-  tooltipText: "#0f172a",
+  tooltipBorder: "#dde4ee",
+  tooltipText: "#111827",
 };
 
 const DARK: ChartTheme = {
-  grid: "#1e2638",
+  grid: "#1e2838",
   axis: "#8493ac",
-  navy: "#4c7df0",
-  navySoft: "rgba(76, 125, 240, 0.22)",
-  red: "#ff5a6e",
-  redSoft: "rgba(255, 90, 110, 0.2)",
-  green: "#34d399",
-  greenSoft: "rgba(52, 211, 153, 0.2)",
+  navy: "#4aa3e8",
+  navySoft: "rgba(74, 163, 232, 0.22)",
+  red: "#ff6072",
+  redSoft: "rgba(255, 96, 114, 0.2)",
+  green: "#aace2e",
+  greenSoft: "rgba(170, 206, 46, 0.2)",
   amber: "#f4c150",
-  tooltipBg: "#1a2438",
-  tooltipBorder: "#1e2638",
-  tooltipText: "#f4f7fb",
+  tooltipBg: "#1a2336",
+  tooltipBorder: "#1e2838",
+  tooltipText: "#f3f6fb",
 };
 
 export function useChartTheme(): ChartTheme {

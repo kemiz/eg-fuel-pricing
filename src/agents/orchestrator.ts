@@ -312,7 +312,15 @@ export async function runPricingAgents(
 
   const synth = await synthesise(snapshot, grade, specialists);
 
-  // Project volume + margin at the final price using the same model as the tool.
+  // Project volume + margin at the final price using the elasticity model.
+  //
+  // CRITICAL: the volume response must be measured against the site's ACTUAL
+  // current pump price, so recommending the same price projects the SAME volume
+  // (no phantom change). Previously this used a synthetic reference of
+  // `cost + typical margin`, which made an unchanged price look like a big move
+  // and produced a spurious volume drop (e.g. 60,384 → 53,600 for a no-change
+  // recommendation). Fall back to the cost-plus reference only when there is no
+  // current EG price on record yet.
   const cost = snapshot.costs.find((c) => c.gradeId === grade);
   const dem = snapshot.demand.find((d) => d.gradeId === grade);
   let projectedVolume: number | null = null;
@@ -320,7 +328,9 @@ export async function runPricingAgents(
   if (cost && dem) {
     const unitCost = cost.wholesaleCost + cost.deliveryCost;
     const refMargin = snapshot.site.country === "US" ? 0.45 : 0.18;
-    const refPrice = unitCost + refMargin;
+    const currentPrice = snapshot.egPrices?.[grade];
+    const refPrice =
+      currentPrice != null && currentPrice > 0 ? currentPrice : unitCost + refMargin;
     const pctPriceChange = refPrice > 0 ? ((synth.price - refPrice) / refPrice) * 100 : 0;
     const pctVolChange = pctPriceChange * dem.elasticity;
     projectedVolume = Math.max(

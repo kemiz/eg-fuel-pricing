@@ -24,15 +24,32 @@ export type Artifact =
   | { kind: "alert"; title: string; body?: string; tone?: Sentiment }
   | { kind: "metric-card"; label: string; value: string; delta?: string; sentiment?: Sentiment };
 
-const PALETTE = ["#0a1f44", "#3f6fe0", "#e4002b", "#0f9d58", "#e8a23d", "#7c5cff"];
+/* Theme-aware palette built on EG brand tokens (resolve via CSS variables so
+   the charts adapt to light / dark automatically). */
+const PALETTE = [
+  "var(--eg-navy)",
+  "var(--eg-green)",
+  "var(--eg-red)",
+  "var(--delta-cheap-fg)",
+  "#e8a23d",
+  "#7c5cff",
+];
 
 function sentimentColor(s?: Sentiment) {
-  return s === "good" ? "#0f9d58" : s === "bad" ? "#e4002b" : "#3f6fe0";
+  return s === "good"
+    ? "var(--delta-cheap-fg)"
+    : s === "bad"
+      ? "var(--eg-red)"
+      : "var(--eg-navy)";
 }
 
 /* -------------------------------------------------------------------------- */
 /*  Parsing (markdown fence body -> Artifact)                                 */
 /* -------------------------------------------------------------------------- */
+
+const SENTIMENTS = new Set(["good", "bad", "neutral"]);
+const asSentiment = (s?: string): Sentiment | undefined =>
+  s && SENTIMENTS.has(s) ? (s as Sentiment) : undefined;
 
 /** Pipe-delimited rows: `Label | value | display | sentiment`. */
 function parseRows(body: string): BarRow[] {
@@ -52,6 +69,36 @@ function parseRows(body: string): BarRow[] {
     });
 }
 
+/**
+ * Metric tiles use `Label | value | sentiment` where `value` is already a
+ * DISPLAY string (currency, %, count — e.g. "$0.43") and the optional 3rd
+ * column is the sentiment. Parsing this with the bar-row parser is wrong: it
+ * treats column 2 as numeric and column 3 as a display override, so a sentiment
+ * like "good" ends up rendered AS the value. This dedicated parser keeps the
+ * value string verbatim and only consumes a real sentiment token.
+ */
+function parseMetricRows(
+  body: string
+): { label: string; value: string; sentiment?: Sentiment }[] {
+  return body
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split("|").map((p) => p.trim());
+      // Drop a trailing sentiment token so it isn't shown as the value. If the
+      // 3rd column isn't a sentiment, treat it as extra display (rare).
+      const last = parts[parts.length - 1];
+      const sentiment = asSentiment(last);
+      const valueParts = sentiment ? parts.slice(1, -1) : parts.slice(1);
+      return {
+        label: parts[0] ?? "",
+        value: valueParts.join(" ").trim() || "—",
+        sentiment,
+      };
+    });
+}
+
 export function parseArtifact(type: string, body: string): Artifact | null {
   const t = type.replace(/^chart:|^card:/, "").toLowerCase();
   try {
@@ -64,14 +111,7 @@ export function parseArtifact(type: string, body: string): Artifact | null {
       case "pie":
         return { kind: "donut", rows: parseRows(body) };
       case "metrics":
-        return {
-          kind: "metrics",
-          rows: parseRows(body).map((r) => ({
-            label: r.label,
-            value: r.display ?? String(r.value),
-            sentiment: r.sentiment,
-          })),
-        };
+        return { kind: "metrics", rows: parseMetricRows(body) };
       case "trend":
       case "line":
       case "sparkline": {
@@ -161,7 +201,7 @@ function ChartShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="my-2 rounded-xl border border-eg-line bg-eg-surface-2/60 p-3">
+    <div className="eg-tile my-2 rounded-xl p-3">
       {title && (
         <div className="mb-2 text-xs font-semibold text-eg-ink">{title}</div>
       )}
@@ -175,27 +215,30 @@ function BarChart({ title, rows }: { title?: string; rows: BarRow[] }) {
   return (
     <ChartShell title={title}>
       <div className="space-y-1.5">
-        {rows.map((r, i) => (
-          <div key={i} className="flex items-center gap-2 text-[11px]">
-            <span className="w-28 shrink-0 truncate text-eg-ink-soft" title={r.label}>
-              {r.label}
-            </span>
-            <div className="h-3.5 flex-1 overflow-hidden rounded bg-eg-surface">
-              <div
-                className="h-full rounded"
-                style={{
-                  width: `${(r.value / max) * 100}%`,
-                  background: r.sentiment
-                    ? sentimentColor(r.sentiment)
-                    : PALETTE[i % PALETTE.length],
-                }}
-              />
+        {rows.map((r, i) => {
+          const color = r.sentiment
+            ? sentimentColor(r.sentiment)
+            : PALETTE[i % PALETTE.length];
+          return (
+            <div key={i} className="flex items-center gap-2 text-[11px]">
+              <span className="w-28 shrink-0 truncate text-eg-ink-soft" title={r.label}>
+                {r.label}
+              </span>
+              <div className="h-3.5 flex-1 overflow-hidden rounded-full bg-[var(--eg-surface-2)]">
+                <div
+                  className="h-full rounded-full transition-[width] duration-500 ease-out"
+                  style={{
+                    width: `${(r.value / max) * 100}%`,
+                    background: `linear-gradient(90deg, color-mix(in srgb, ${color} 70%, transparent), ${color})`,
+                  }}
+                />
+              </div>
+              <span className="kpi-num w-16 shrink-0 text-right font-semibold text-eg-ink">
+                {r.display ?? r.value}
+              </span>
             </div>
-            <span className="kpi-num w-16 shrink-0 text-right font-semibold text-eg-ink">
-              {r.display ?? r.value}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </ChartShell>
   );
@@ -203,32 +246,32 @@ function BarChart({ title, rows }: { title?: string; rows: BarRow[] }) {
 
 function DonutChart({ title, rows }: { title?: string; rows: BarRow[] }) {
   const total = rows.reduce((a, r) => a + r.value, 0) || 1;
-  let offset = 0;
   const R = 28;
   const C = 2 * Math.PI * R;
+  // Pre-compute the cumulative dash offset for each segment so we never mutate
+  // during render.
+  const segments = rows.map((r, i) => {
+    const dash = (r.value / total) * C;
+    const offset = (rows.slice(0, i).reduce((a, x) => a + x.value, 0) / total) * C;
+    return { dash, offset };
+  });
   return (
     <ChartShell title={title}>
       <div className="flex items-center gap-4">
         <svg viewBox="0 0 72 72" className="h-20 w-20 -rotate-90">
-          {rows.map((r, i) => {
-            const frac = r.value / total;
-            const dash = frac * C;
-            const seg = (
-              <circle
-                key={i}
-                cx={36}
-                cy={36}
-                r={R}
-                fill="none"
-                stroke={r.sentiment ? sentimentColor(r.sentiment) : PALETTE[i % PALETTE.length]}
-                strokeWidth={10}
-                strokeDasharray={`${dash} ${C - dash}`}
-                strokeDashoffset={-offset}
-              />
-            );
-            offset += dash;
-            return seg;
-          })}
+          {rows.map((r, i) => (
+            <circle
+              key={i}
+              cx={36}
+              cy={36}
+              r={R}
+              fill="none"
+              stroke={r.sentiment ? sentimentColor(r.sentiment) : PALETTE[i % PALETTE.length]}
+              strokeWidth={10}
+              strokeDasharray={`${segments[i].dash} ${C - segments[i].dash}`}
+              strokeDashoffset={-segments[i].offset}
+            />
+          ))}
         </svg>
         <div className="space-y-1">
           {rows.map((r, i) => (
@@ -274,17 +317,25 @@ function TrendChart({
   const line = pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
   const area = `0,${h} ${line} ${w},${h}`;
   const up = values[values.length - 1] >= values[0];
-  const color = up ? "#0f9d58" : "#e4002b";
+  const color = up ? "var(--delta-cheap-fg)" : "var(--eg-red)";
+  const gid = `trend-${up ? "up" : "down"}`;
   return (
     <ChartShell title={title}>
       <svg viewBox={`0 0 ${w} ${h}`} className="h-16 w-full" preserveAspectRatio="none">
-        <polygon points={area} fill={color} opacity={0.12} />
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <polygon points={area} fill={`url(#${gid})`} />
         <polyline
           points={line}
           fill="none"
           stroke={color}
           strokeWidth={2}
           strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
         />
       </svg>
       {labels && labels.length > 0 && (
@@ -308,7 +359,7 @@ function MetricRow({
     <ChartShell title={title}>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {rows.map((r, i) => (
-          <div key={i} className="rounded-lg bg-eg-surface px-2.5 py-1.5">
+          <div key={i} className="eg-tile rounded-lg px-2.5 py-1.5">
             <div className="text-[10px] uppercase tracking-wide text-eg-ink-soft">
               {r.label}
             </div>
@@ -336,12 +387,12 @@ function AlertCard({
 }) {
   const toneCls =
     tone === "bad"
-      ? "border-eg-red/40 bg-[var(--delta-dear-bg)]"
+      ? "border border-eg-red/40 bg-[var(--delta-dear-bg)]"
       : tone === "good"
-        ? "border-[var(--delta-cheap-fg)]/30 bg-[var(--delta-cheap-bg)]"
-        : "border-eg-line bg-eg-surface-2";
+        ? "border border-[var(--delta-cheap-fg)]/30 bg-[var(--delta-cheap-bg)]"
+        : "eg-tile";
   return (
-    <div className={cn("my-2 flex gap-2 rounded-xl border p-3", toneCls)}>
+    <div className={cn("my-2 flex gap-2 rounded-xl p-3", toneCls)}>
       <AlertTriangle
         size={16}
         className="mt-0.5 shrink-0"
@@ -368,7 +419,7 @@ function MetricCard({
 }) {
   const Icon = sentiment === "good" ? TrendingUp : sentiment === "bad" ? TrendingDown : Minus;
   return (
-    <div className="my-2 inline-flex min-w-40 flex-col rounded-xl border border-eg-line bg-eg-surface-2 px-3 py-2">
+    <div className="eg-tile my-2 inline-flex min-w-40 flex-col rounded-xl px-3 py-2">
       <div className="text-[10px] uppercase tracking-wide text-eg-ink-soft">{label}</div>
       <div className="kpi-num text-xl font-bold text-eg-navy">{value}</div>
       {delta && (

@@ -148,7 +148,10 @@ async function main() {
         for (let i = 0; i < nComp; i++) {
           let name = pick(pool_);
           let guard = 0;
-          while (chosen.has(name) && guard++ < 5) name = pick(pool_);
+          while (chosen.has(name) && guard++ < 20) name = pick(pool_);
+          // Names must be unique per site/grade — they key the history series
+          // (PK: site_id, grade_id, series, day). Skip if we couldn't find one.
+          if (chosen.has(name)) continue;
           chosen.add(name);
           const price = Number(
             (wholesale + delivery + compMargin + between(isUS ? -0.08 : -0.04, isUS ? 0.08 : 0.04)).toFixed(3)
@@ -174,8 +177,8 @@ async function main() {
         const trend = pick(["up", "flat", "down"]);
         const volume = Math.round(baseVol + between(-300, 700));
         await pool.query(
-          `INSERT INTO eg_app.demand_signals (site_id,grade_id,avg_daily_volume,elasticity,trend)
-           VALUES ($1,$2,$3,$4,$5)`,
+          `INSERT INTO eg_app.demand_signals (site_id,grade_id,avg_daily_volume,base_avg_daily_volume,elasticity,trend)
+           VALUES ($1,$2,$3,$3,$4,$5)`,
           [s.id, grade, volume, elasticity, trend]
         );
 
@@ -216,48 +219,137 @@ async function main() {
 
         // -----------------------------------------------------------------
         // Historical daily price series (~90 days) for EG + each competitor.
-        // A shared market wave drives all series; each series ends at its
-        // current value so the chart lines up with today's prices.
+        //
+        // Built to look like real forecourt pricing rather than a clean sine.
+        // Crucially, every brand has its OWN dynamics — its own random walk,
+        // its own shocks, its own trend — only PARTLY correlated with a shared
+        // market component. So lines genuinely diverge, cross and have
+        // independent drops/spikes (no two are the same line shifted).
+        //   common  = shared local-market signal (crude + season), ~weight 0.6
+        //   private = brand-specific random walk + brand-specific shocks
+        //   retail  = asymmetric "rockets & feathers" pass-through of
+        //             (common + private), then re-anchored to today's price.
         // -----------------------------------------------------------------
         const DAYS = 90;
         const dp = isUS ? 2 : 3;
         const round = (v) => Number(v.toFixed(dp));
-        // Market wave: smooth seasonal swing + slow drift over the window.
-        const amp = isUS ? between(0.1, 0.22) : between(0.04, 0.09);
-        const drift = between(-0.12, 0.12) * (isUS ? 1 : 0.4);
-        const phase = rand() * Math.PI * 2;
-        const period = between(28, 55);
-        // wave(t): t=0 is today (offset 0), t=DAYS is the oldest day.
-        const wave = (t) =>
-          amp * Math.sin(phase + (t / period) * Math.PI * 2) -
-          drift * (t / DAYS); // subtract so today reflects full drift
+        const scale = isUS ? 1 : 0.42; // GBP/litre moves are smaller than USD/gal
 
-        const egCurrent = recPrice;
-        const compAvgNow =
-          competitorNow.reduce((a, c) => a + c.price, 0) / competitorNow.length;
+        // Mean-reverting random-walk signal generator (indexed oldest->today).
+        // Each call is independent, so every brand can have its own path.
+        const makeSignal = ({ vol, reversion, trendSlope, seasonalAmp, seasonalPeriod, seasonalPhase, shockProb }) => {
+          const sig = new Array(DAYS + 1);
+          let lvl = 0;
+          for (let i = 0; i <= DAYS; i++) {
+            const trend = trendSlope * (i - DAYS / 2);
+            const seasonal =
+              seasonalAmp * Math.sin(seasonalPhase + (i / seasonalPeriod) * Math.PI * 2);
+            lvl += reversion * (trend + seasonal - lvl) + between(-vol, vol) * scale * 3;
+            sig[i] = lvl;
+          }
+          // Independent transient shocks (spike up / drop down, then decay).
+          let nShock = rand() < shockProb ? 1 : 0;
+          if (rand() < shockProb * 0.5) nShock += 1;
+          for (let s2 = 0; s2 < nShock; s2++) {
+            const at = Math.floor(between(6, DAYS - 4));
+            const mag = between(0.05, 0.17) * scale * (rand() < 0.72 ? 1 : -1);
+            const decay = between(2.5, 9);
+            for (let i = at; i <= DAYS; i++) sig[i] += mag * Math.exp(-(i - at) / decay);
+          }
+          return sig;
+        };
+
+        // Shared local-market component all nearby forecourts feel.
+        const common = makeSignal({
+          vol: isUS ? between(0.016, 0.03) : between(0.01, 0.018),
+          reversion: 0.045,
+          trendSlope: between(-0.006, 0.006) * scale,
+          seasonalAmp: between(0.04, 0.1) * scale,
+          seasonalPeriod: between(40, 75),
+          seasonalPhase: rand() * Math.PI * 2,
+          shockProb: 0.7,
+        });
+
+        // Build one brand's retail path: blend shared + its own private signal,
+        // apply asymmetric pass-through, then re-anchor to today's real price.
+        const buildSeries = (anchorPrice, opts) => {
+          const { fastUp, slowDown, commonWeight } = opts;
+          const priv = makeSignal({
+            vol: (isUS ? between(0.018, 0.034) : between(0.011, 0.02)),
+            reversion: between(0.05, 0.11), // brand paths revert a bit faster
+            trendSlope: between(-0.005, 0.005) * scale,
+            seasonalAmp: between(0.02, 0.07) * scale,
+            seasonalPeriod: between(22, 60),
+            seasonalPhase: rand() * Math.PI * 2,
+            shockProb: 0.55,
+          });
+          const drive = common.map((c, i) => commonWeight * c + (1 - commonWeight) * priv[i]);
+
+          const rel = new Array(DAYS + 1);
+          let r = drive[0];
+          for (let i = 0; i <= DAYS; i++) {
+            const k = drive[i] > r ? fastUp : slowDown; // up fast, down slow
+            r += k * (drive[i] - r);
+            rel[i] = r;
+          }
+          const offset = anchorPrice - rel[DAYS];
+          return rel.map((v) => v + offset);
+        };
+
+        const floor = wholesale + delivery + 0.02 * scale;
+        const egSeries = buildSeries(recPrice, {
+          fastUp: between(0.5, 0.78),
+          slowDown: between(0.12, 0.22),
+          commonWeight: between(0.62, 0.72),
+        });
+
+        const compSeriesByName = competitorNow.map((c) => ({
+          name: c.name,
+          values: buildSeries(c.price, {
+            fastUp: between(0.42, 0.85),
+            slowDown: between(0.1, 0.3),
+            // Each rival weights the shared market differently, so some hug the
+            // market while others wander on their own and cross EG.
+            commonWeight: between(0.42, 0.72),
+          }),
+        }));
+
+        // Per-day unit cost series: anchored so TODAY equals the live cost
+        // (wholesale + delivery) and earlier days track the shared crude/market
+        // signal (cost was lower when crude was lower). Stored as a hidden
+        // "__cost__" series so analytics can compute margin = price − SAME-DAY
+        // cost rather than comparing old prices to today's drifted cost.
+        const COST_SERIES = "__cost__";
+        const unitCostNow = wholesale + delivery;
+        const costSeries = common.map((c) =>
+          Math.max(0.05 * scale, unitCostNow + (c - common[DAYS]))
+        );
 
         const histValues = [];
         for (let t = 0; t <= DAYS; t++) {
-          const day = `now() - (${t} || ' days')::interval`;
-          const w = wave(t);
-          // EG series.
-          const egNoise = between(-0.01, 0.01) * (isUS ? 1 : 0.4);
+          // t is the day offset back from today; series arrays are indexed
+          // oldest->today, so today (offset 0) reads index DAYS.
+          const idx = DAYS - t;
           histValues.push({
             series: "EG",
             isEg: true,
             t,
-            price: round(Math.max(wholesale + delivery + 0.02, egCurrent + w + egNoise)),
+            price: round(Math.max(floor, egSeries[idx])),
           });
-          // Competitor series (each tracks the wave with its own offset/noise).
-          for (const c of competitorNow) {
-            const cNoise = between(-0.015, 0.015) * (isUS ? 1 : 0.4);
+          for (const c of compSeriesByName) {
             histValues.push({
               series: c.name,
               isEg: false,
               t,
-              price: round(Math.max(0.1, c.price + w + cNoise)),
+              price: round(Math.max(0.1, c.values[idx])),
             });
           }
+          histValues.push({
+            series: COST_SERIES,
+            isEg: false,
+            t,
+            price: round(costSeries[idx]),
+          });
         }
         // Bulk insert this site/grade's history.
         const vals = [];
@@ -274,7 +366,6 @@ async function main() {
            VALUES ${vals.join(",")}`,
           params
         );
-        void compAvgNow;
       }
     }
 

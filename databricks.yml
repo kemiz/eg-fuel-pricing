@@ -16,6 +16,14 @@
 bundle:
   name: eg-fuel-pricing-bundle
 
+# DABs file sync honours .gitignore, which excludes `/.next/*`. The committed
+# compact standalone bundle (the actual deploy artifact) lives under
+# `.next/standalone/`, so force-include it — otherwise the app starts with no
+# `server.js` and crashes.
+sync:
+  include:
+    - .next/standalone/**
+
 variables:
   lakebase_instance:
     description: Lakebase Postgres instance backing the EG app schema.

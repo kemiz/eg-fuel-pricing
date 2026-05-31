@@ -1,6 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import type { RegionRollup } from "@/lib/data/server";
 import { Card, Pill, SectionHeader } from "@/components/ui";
+import { ChangeFlash } from "@/components/ChangeFlash";
+import { SimRefreshing } from "@/components/SimRefreshing";
 import { regionLabel } from "@/lib/geo";
 import { formatPrice, unitLabel } from "@/lib/utils";
 
@@ -17,10 +21,12 @@ export function RegionTable({ rollups }: { rollups: RegionRollup[] }) {
           description="Average margin and competitor positioning per region. Click a region to drill into the map."
         />
       </div>
-      <div className="grid gap-0 md:grid-cols-2 md:divide-x md:divide-eg-line">
-        <RegionGroup title="US — EG America" currency="USD" country="US" rows={us} />
-        <RegionGroup title="UK" currency="GBP" country="UK" rows={uk} />
-      </div>
+      <SimRefreshing>
+        <div className="grid gap-0 md:grid-cols-2 md:divide-x md:divide-eg-line">
+          <RegionGroup title="US — EG America" currency="USD" country="US" rows={us} />
+          <RegionGroup title="UK" currency="GBP" country="UK" rows={uk} />
+        </div>
+      </SimRefreshing>
     </Card>
   );
 }
@@ -78,7 +84,7 @@ function RegionGroup({
               >
                 <td className="px-5 py-2">
                   <Link
-                    href={`/network?region=${encodeURIComponent(r.region)}`}
+                    href={`/analytics?tab=map&region=${encodeURIComponent(r.region)}`}
                     className="font-medium text-eg-ink hover:text-eg-navy"
                   >
                     {regionLabel(country, r.region)}
@@ -88,13 +94,21 @@ function RegionGroup({
                   {r.sites}
                 </td>
                 <td className="kpi-num px-2 py-2 text-right font-semibold text-eg-navy">
-                  {formatPrice(r.avgMargin, currency)}
-                  <span className="text-[11px] font-normal text-eg-ink-soft">
-                    {unitLabel(country)}
-                  </span>
+                  <ChangeFlash
+                    value={formatPrice(r.avgMargin, currency)}
+                    numeric={r.avgMargin}
+                    className="inline-block px-1"
+                  >
+                    {formatPrice(r.avgMargin, currency)}
+                    <span className="text-[11px] font-normal text-eg-ink-soft">
+                      {unitLabel(country)}
+                    </span>
+                  </ChangeFlash>
                 </td>
                 <td className="px-5 py-2 text-right">
-                  <Pill tone={tone}>{label}</Pill>
+                  <ChangeFlash value={label} className="inline-block">
+                    <Pill tone={tone}>{label}</Pill>
+                  </ChangeFlash>
                 </td>
               </tr>
             );

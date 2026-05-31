@@ -3,9 +3,11 @@ import { chatStreamResponse, type ChatMessage } from "@/lib/databricks";
 import { endpointFor } from "@/lib/models";
 import {
   getNetworkContext,
+  getPerformance,
   getPriceHistory,
   getSiteSnapshot,
 } from "@/lib/data/server";
+import { getSimState } from "@/lib/sim/repo";
 import type { GradeId } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -24,6 +26,14 @@ STYLE
 - Be concise and decision-oriented. Lead with the answer, then the supporting detail.
 - Use GitHub-flavoured Markdown: short paragraphs, **bold** key numbers, bullet lists, and tables where a comparison helps.
 - US prices are USD per gallon (2dp); UK prices are GBP per litre (3dp).
+
+DATE / "TODAY": The CURRENT DATE line in the context gives today's date — treat THAT as "today". All "now/today/this week/recently/latest" references, and the PRICE HISTORY (where wk 0 = today), are relative to that date. Use it for every time reference and never substitute a different date. Never mention simulations, models, test data, or that this is a demo — speak as the live EG pricing platform operating on real forecourt data.
+
+LENGTH DISCIPLINE (HARD RULES — these OVERRIDE any user request to list "all"/"every" item) — keep every answer complete and self-contained; never let a table or sentence get cut off.
+- Show at most 8 rows TOTAL across all tables in a response. Even if the user says "show every/all sites", show the 8 most relevant (e.g. biggest margin delta) and add one line like "+ 14 more — ask to see a specific region" instead of listing them all. Never exceed 8 rows; never split into multiple long tables to get around this.
+- Use ONE focused table per answer. Put secondary detail in a short bullet summary or a \`chart:bar\`, not a second table.
+- Keep the whole response under ~450 words so it always finishes, INCLUDING the closing FOLLOWUPS comment, which is mandatory and must always be the last thing you output. Tighten prose, drop redundant columns, and round numbers to make room.
+- If you sense you are running long, stop adding rows/detail and wrap up with the FOLLOWUPS comment rather than truncating mid-table.
 
 DATA YOU HAVE — do not claim you lack it:
 - Per-site REGULAR-grade modelled daily VOLUME (throughput) and price ELASTICITY of demand.
@@ -72,6 +82,8 @@ ALWAYS ANSWER THE QUESTION using the data you have. The PER-SITE DETAIL table le
 
 ONLY mention the "Run pricing agents" action when the user explicitly asks you to GENERATE A BRAND-NEW recommended price for a specific site (verbs like "optimise this site", "recommend a new price", "what price should we set"). In that case: give your own quick data-driven view first, THEN add one short line that they can click "Run pricing agents" on the site page for the full four-agent recommendation. Do NOT deflect analytical, comparison, or "why/which/how" questions to that action — answer them directly.
 
+APPLYING / CHANGING PRICES — the platform CAN apply prices to the forecourt directly. A request to set or apply a SPECIFIC price for a site (e.g. "apply $3.38 to Nashville", "set regular to 1.45 at <site>") is handled automatically — the price is committed and an applied-confirmation card is shown to the user; you do NOT need to (and should not) describe how to do it manually or mention any "Set EG price" card. If the user instead asks WHAT price to set (advice, not a specific number), give your data-driven view and suggest a price; they can then say "apply $X" to commit it. Never claim you lack write access, and never refer to a "simulation" or "simulated day" — applied prices go live immediately.
+
 FOLLOW-UPS — at the VERY END of every response, add a single HTML comment listing 3 short, specific follow-up questions the user is likely to want next (drill deeper, take an action, or look at a related angle). Keep each label under ~7 words. This comment is hidden from the user and rendered as clickable buttons. Format EXACTLY:
 <!-- FOLLOWUPS: ["Break Florida down by site", "Which sites should we reprice?", "Compare to last week"] -->
 Make them flow naturally from what you just answered (e.g. if you showed dearer sites, suggest "Match competition on these" or "Optimise the worst offender").
@@ -91,7 +103,63 @@ export async function POST(req: NextRequest) {
   );
   if (!turns.length) return json({ error: "messages required" }, 400);
 
-  const net = await getNetworkContext();
+  const [net, sim, perf] = await Promise.all([
+    getNetworkContext(),
+    getSimState().catch(() => null),
+    getPerformance().catch(() => null),
+  ]);
+
+  // Clock anchor so the model treats the platform's current date as "today".
+  let clockLine = "";
+  if (sim) {
+    const pretty = new Date(`${sim.simDate}T00:00:00Z`).toLocaleDateString(
+      "en-GB",
+      { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }
+    );
+    clockLine = `CURRENT DATE — today is ${pretty} (${sim.simDate}). Treat this as "today" for all time references.\n\n`;
+  }
+
+  // Performance tape: cumulative results over the run + uplift vs holding
+  // baseline prices, and how applied price changes landed. Lets the assistant
+  // answer "how are we performing overall" with real numbers.
+  let perfLine = "";
+  if (perf && perf.dayIndex > 0) {
+    const fmtM = (v: number, cur: string) => {
+      const sym = cur === "USD" ? "$" : "£";
+      const abs = Math.abs(v);
+      const s = abs >= 1e6 ? `${(abs / 1e6).toFixed(2)}M` : abs >= 1e3 ? `${(abs / 1e3).toFixed(0)}k` : abs.toFixed(0);
+      return `${v < 0 ? "−" : ""}${sym}${s}`;
+    };
+    const countryLines = perf.countries
+      .filter((c) => c.totals.days > 0)
+      .map((c) => {
+        const t = c.totals;
+        const upPct = t.upliftPct != null ? ` (${t.cumUplift >= 0 ? "+" : "−"}${Math.abs(t.upliftPct).toFixed(1)}%)` : "";
+        return `${c.country}: cumulative margin pool ${fmtM(t.cumMarginPool, c.currency)} over ${t.days}d; uplift vs holding baseline prices flat ${fmtM(t.cumUplift, c.currency)}${upPct}; run avg margin ${c.currency === "USD" ? "$" : "£"}${t.avgMargin.toFixed(c.currency === "GBP" ? 3 : 2)}/${c.unit}`;
+      })
+      .join("\n");
+    const measured = perf.interventions.filter((i) => i.helped != null);
+    const helped = measured.filter((i) => i.helped).length;
+    const recent = perf.interventions
+      .slice(0, 6)
+      .map((i) => {
+        const sym = i.country === "US" ? "$" : "£";
+        const dp = i.country === "US" ? 2 : 3;
+        const impact =
+          i.realizedMarginDelta == null
+            ? "measuring"
+            : `${i.realizedMarginDelta >= 0 ? "improved" : "hurt"} margin by ${sym}${Math.abs(i.realizedMarginDelta).toFixed(dp)}/unit`;
+        const newP = i.newPrice != null ? `${sym}${i.newPrice.toFixed(dp)}` : "?";
+        return `- ${i.siteName} (${i.regionLabel}), ${i.source}, set ${newP} → ${impact}`;
+      })
+      .join("\n");
+    perfLine = `PERFORMANCE (tracking period to date, ${perf.dayIndex} days):\n${countryLines}${
+      measured.length
+        ? `\nApplied price changes: ${helped}/${measured.length} measured changes improved per-unit margin.`
+        : ""
+    }${recent ? `\nRecent applied changes:\n${recent}` : ""}\n\nThe UPLIFT is the extra fuel margin vs holding starting prices flat — i.e. the value the active pricing has added. Use these real figures when asked how we're doing overall. Refer to the period as "since we started tracking" or by date, never as a "simulation".\n\n`;
+  }
+
   let siteDetail = "";
   if (body.siteId) {
     const snap = await getSiteSnapshot(body.siteId);
@@ -143,7 +211,7 @@ export async function POST(req: NextRequest) {
   }
 
   const messages: ChatMessage[] = [
-    { role: "system", content: `${SYSTEM}\n\n${net.text}${siteDetail}` },
+    { role: "system", content: `${SYSTEM}\n\n${clockLine}${perfLine}${net.text}${siteDetail}` },
     ...turns.map((t) => ({ role: t.role, content: t.content }) as ChatMessage),
   ];
 
@@ -152,7 +220,7 @@ export async function POST(req: NextRequest) {
     upstream = await chatStreamResponse(messages, {
       endpoint: endpointFor("flagship"),
       temperature: 0.3,
-      maxTokens: 1600,
+      maxTokens: 4000,
     });
   } catch (e) {
     return json({ error: (e as Error).message }, 502);

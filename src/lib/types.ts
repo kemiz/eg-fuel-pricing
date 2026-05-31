@@ -56,6 +56,12 @@ export interface PriceRecommendation {
   confidence: number | null;
   perAgentNotes: AgentNote[] | null;
   createdAt: string;
+  /**
+   * The simulated day index this recommendation was generated on. Lets the UI
+   * show its age in SIM days (matching the moving clock) rather than real
+   * wall-clock time. Null for older rows created before this was tracked.
+   */
+  simDayIndex: number | null;
 }
 
 export interface AgentNote {
@@ -71,6 +77,11 @@ export interface SiteSnapshot {
   competitors: CompetitorPrice[];
   demand: DemandSignal[];
   latestRecommendations: PriceRecommendation[];
+  /**
+   * Current EG pump price per grade, sourced from the latest `price_history` EG
+   * row (the live/simulated price). Undefined for a grade with no EG history.
+   */
+  egPrices: Partial<Record<GradeId, number>>;
 }
 
 /** Per-site row for the map / dashboard, with derived price + delta vs comp. */

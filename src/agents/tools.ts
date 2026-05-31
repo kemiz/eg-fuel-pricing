@@ -155,7 +155,7 @@ export function executeTool(
   call: ToolCall,
   snapshot: SiteSnapshot
 ): Record<string, unknown> {
-  const { site, costs, competitors, demand } = snapshot;
+  const { site, costs, competitors, demand, egPrices } = snapshot;
   const unit = site.unit;
   const grade = normGrade(call.args.grade);
 
@@ -191,6 +191,9 @@ export function executeTool(
         .map((d) => ({
           grade: d.gradeId,
           avg_daily_volume: d.avgDailyVolume,
+          // The current pump price the avg_daily_volume is observed AT — the
+          // baseline against which any price change moves volume via elasticity.
+          current_price: egPrices?.[d.gradeId] ?? null,
           elasticity: d.elasticity,
           trend: d.trend,
         }));
@@ -206,9 +209,15 @@ export function executeTool(
       if (!cost || !dem) return { error: `no data for grade ${grade}` };
       const unitCost = cost.wholesaleCost + cost.deliveryCost;
       const unitMargin = price - unitCost;
-      // Project volume from elasticity vs a reference price = unitCost + typical margin.
+      // Project volume from elasticity vs the site's CURRENT pump price, so a
+      // proposed price equal to today's price projects today's volume (no
+      // phantom change). Fall back to a cost-plus reference only when no current
+      // EG price is on record. (Previously this always used cost + typical
+      // margin, which made an unchanged price look like a big move.)
       const refMargin = site.country === "US" ? 0.45 : 0.18;
-      const refPrice = unitCost + refMargin;
+      const currentPrice = egPrices?.[grade];
+      const refPrice =
+        currentPrice != null && currentPrice > 0 ? currentPrice : unitCost + refMargin;
       const pctPriceChange = refPrice > 0 ? ((price - refPrice) / refPrice) * 100 : 0;
       const pctVolChange = pctPriceChange * dem.elasticity; // elasticity is negative
       const projVolume = Math.max(
@@ -220,6 +229,8 @@ export function executeTool(
         grade,
         price,
         unit,
+        current_price: currentPrice ?? null,
+        reference_price: Number(refPrice.toFixed(3)),
         unit_cost: Number(unitCost.toFixed(3)),
         unit_margin: Number(unitMargin.toFixed(3)),
         projected_daily_volume: projVolume,

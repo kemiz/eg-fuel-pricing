@@ -50,6 +50,15 @@ export function cleanContent(content: string): string {
   // Follow-up metadata (complete or still-streaming/partial).
   c = c.replace(/<!--\s*FOLLOWUPS:[\s\S]*?-->/gi, "");
   c = c.replace(/<!--\s*FOLLOWUPS:[\s\S]*$/gi, "");
+  // Neutralise stray single tildes. The model uses "~" as shorthand for
+  // "approximately" (e.g. "by ~3.9p ... (~£127k/day"), but remark-gfm reads a
+  // pair of single tildes as a strikethrough span, so everything between two
+  // such "~" got struck through. Escape lone tildes (those NOT part of a real
+  // "~~…~~" pair) to "\~" so they render literally, while leaving genuine
+  // double-tilde strikethrough intact.
+  c = c.replace(/~~([\s\S]*?)~~/g, "\u0000\u0000$1\u0000\u0000"); // shield real ~~ pairs
+  c = c.replace(/~/g, "\\~"); // escape remaining lone tildes
+  c = c.replace(/\u0000\u0000/g, "~~"); // restore shielded pairs
   return c.trim();
 }
 

@@ -110,3 +110,41 @@ export async function pgQuery<T = Record<string, unknown>>(
   const res = await pool.query(sql, params as unknown[]);
   return res.rows as T[];
 }
+
+/** A query function bound to a single dedicated connection (inside a tx). */
+export type TxQuery = <T = Record<string, unknown>>(
+  sql: string,
+  params?: unknown[]
+) => Promise<T[]>;
+
+/**
+ * Run `fn` inside a single transaction on a dedicated pooled client. The client
+ * is checked out for the whole callback, BEGIN/COMMIT are issued automatically,
+ * and any throw triggers ROLLBACK. Used by the simulation tick which must write
+ * many tables atomically.
+ */
+export async function pgTransaction<R>(
+  fn: (q: TxQuery) => Promise<R>
+): Promise<R> {
+  const pool = await getPool();
+  const client = await pool.connect();
+  const q: TxQuery = async (sql, params = []) => {
+    const res = await client.query(sql, params as unknown[]);
+    return res.rows as never;
+  };
+  try {
+    await client.query("BEGIN");
+    const result = await fn(q);
+    await client.query("COMMIT");
+    return result;
+  } catch (e) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      /* ignore rollback failure */
+    }
+    throw e;
+  } finally {
+    client.release();
+  }
+}

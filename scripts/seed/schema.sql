@@ -62,6 +62,11 @@ CREATE TABLE eg_app.demand_signals (
   site_id          TEXT NOT NULL REFERENCES eg_app.sites(site_id),
   grade_id         TEXT NOT NULL REFERENCES eg_app.fuel_grades(grade_id),
   avg_daily_volume INT NOT NULL,
+  -- The seeded baseline volume. avg_daily_volume is mutated every simulated day
+  -- as demand responds to pricing; this column preserves the day-0 anchor so a
+  -- reset can restore volumes to their true starting level (and the engine can
+  -- mean-revert to it) instead of locking in a drifted value.
+  base_avg_daily_volume INT,
   elasticity       NUMERIC(4,2) NOT NULL,
   trend            TEXT NOT NULL,
   as_of            DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -78,7 +83,10 @@ CREATE TABLE eg_app.price_recommendations (
   projected_volume   INT,
   confidence         NUMERIC(3,2),
   per_agent_notes    JSONB,
-  created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Simulated day index the recommendation was generated on, so the UI can show
+  -- its age on the moving sim clock rather than real wall-clock time.
+  sim_day_index      INT
 );
 
 CREATE INDEX idx_price_rec_site ON eg_app.price_recommendations(site_id, created_at DESC);

@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import { useChartTheme, tooltipStyle } from "@/lib/chart-theme";
-import type { PriceHistory } from "@/lib/types";
+import type { FuelGrade, GradeId, PriceHistory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 /** Muted palette for competitor lines (EG always uses the brand red). */
@@ -24,15 +24,39 @@ interface Row {
   [series: string]: number | string;
 }
 
-export function PriceHistoryChart({ history }: { history: PriceHistory }) {
+export function PriceHistoryChart({
+  histories,
+  grades,
+}: {
+  /** Price history per grade — the switcher only shows grades present here. */
+  histories: Partial<Record<GradeId, PriceHistory>>;
+  grades: FuelGrade[];
+}) {
   const t = useChartTheme();
   const [period, setPeriod] = useState<Period>(90);
 
-  const symbol = history.currency === "USD" ? "$" : "£";
+  // Only grades that actually have history are switchable.
+  const available = useMemo(
+    () => grades.filter((g) => histories[g.gradeId]),
+    [grades, histories]
+  );
+  const [grade, setGrade] = useState<GradeId>(
+    () => available[0]?.gradeId ?? "regular"
+  );
+  // Resolve the active history, falling back to the first available grade if
+  // the selection is stale. The parent only renders us with data present, so
+  // this is always defined.
+  const history =
+    histories[grade] ??
+    (available[0] ? histories[available[0].gradeId] : undefined) ??
+    Object.values(histories)[0];
+
+  const symbol = history?.currency === "USD" ? "$" : "£";
   const dp = history.currency === "GBP" ? 3 : 2;
   const fmt = (v: number) => `${symbol}${v.toFixed(dp)}`;
 
   const { rows, eg, competitors } = useMemo(() => {
+    if (!history) return { rows: [] as Row[], eg: "EG", competitors: [] as string[] };
     const days = history.days.slice(-period);
     const allowed = new Set(days);
     const rows: Row[] = days.map((day) => ({ day }));
@@ -52,6 +76,7 @@ export function PriceHistoryChart({ history }: { history: PriceHistory }) {
 
   // Trend summary: EG price change across the window.
   const summary = useMemo(() => {
+    if (!history) return null;
     const egSeries = history.series.find((s) => s.isEg);
     if (!egSeries) return null;
     const pts = egSeries.points.filter((p) => Number.isFinite(p.price)).slice(-period);
@@ -74,28 +99,51 @@ export function PriceHistoryChart({ history }: { history: PriceHistory }) {
 
   const tickEvery = period <= 30 ? 4 : period <= 60 ? 6 : 9;
 
+  if (!history) return null;
+
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="text-xs text-eg-ink-soft">
           EG vs local competitors · daily pump price
         </div>
-        <div className="flex items-center gap-1 rounded-lg border border-eg-line p-0.5">
-          {([30, 60, 90] as Period[]).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPeriod(p)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                period === p
-                  ? "bg-eg-navy text-white"
-                  : "text-eg-ink-soft hover:text-eg-ink"
-              )}
-            >
-              {p}d
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          {available.length > 1 && (
+            <div className="flex items-center gap-1 rounded-lg border border-eg-line p-0.5">
+              {available.map((g) => (
+                <button
+                  key={g.gradeId}
+                  type="button"
+                  onClick={() => setGrade(g.gradeId)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                    grade === g.gradeId
+                      ? "bg-eg-navy text-white"
+                      : "text-eg-ink-soft hover:text-eg-ink"
+                  )}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-1 rounded-lg border border-eg-line p-0.5">
+            {([30, 60, 90] as Period[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPeriod(p)}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                  period === p
+                    ? "bg-eg-navy text-white"
+                    : "text-eg-ink-soft hover:text-eg-ink"
+                )}
+              >
+                {p}d
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

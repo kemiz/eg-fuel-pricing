@@ -52,3 +52,12 @@ export const env = {
 };
 
 export const APP = (table: string) => `${env.pgAppSchema}.${table}`;
+
+/**
+ * Special `series` value used in price_history to store each day's per-unit
+ * cost (wholesale + delivery) alongside the EG/competitor price series. This
+ * lets margin = price − SAME-DAY cost be computed historically, instead of
+ * comparing old prices against today's (drifted) cost. It is NOT a real price
+ * series, so every read that returns prices/competitors must exclude it.
+ */
+export const COST_SERIES = "__cost__";

@@ -6,13 +6,15 @@ import { cn } from "@/lib/utils";
 export function Brand({ className }: { className?: string }) {
   return (
     <Link href="/" className={cn("flex items-center gap-3", className)}>
-      <Image
-        src="/brand/eg-logo.svg"
-        alt="EG Group"
-        width={96}
-        height={38}
-        priority
-      />
+      <span className="flex items-center justify-center rounded-lg bg-white px-2.5 py-1.5 shadow-sm">
+        <Image
+          src="/brand/eg-logo.svg"
+          alt="EG Group"
+          width={48}
+          height={38}
+          priority
+        />
+      </span>
       <span className="hidden sm:flex flex-col leading-tight">
         <span className="text-sm font-semibold text-white">Fuel Price Optimisation</span>
         <span className="text-[11px] text-white/60">Multi-agent pricing</span>

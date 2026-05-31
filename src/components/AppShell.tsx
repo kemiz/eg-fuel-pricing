@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
-  Map as MapIcon,
   Sparkles,
   Fuel,
+  BarChart3,
   Moon,
   Sun,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Brand } from "@/components/Brand";
+import { SimBar } from "@/components/SimBar";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -22,10 +22,9 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { href: "/", label: "Overview", icon: LayoutDashboard },
-  { href: "/network", label: "Network map", icon: MapIcon },
+  { href: "/", label: "Ask EG", icon: Sparkles },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/sites", label: "Sites", icon: Fuel },
-  { href: "/ask", label: "Ask EG", icon: Sparkles },
 ];
 
 function isActive(href: string, pathname: string) {
@@ -37,9 +36,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen">
-      <header className="eg-gradient sticky top-0 z-30 border-b border-black/20">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+    <div className="flex h-screen flex-col overflow-hidden">
+      {/* Aurora backdrop the frosted glass panels blur over. */}
+      <div className="eg-aurora" aria-hidden />
+      <header className="eg-glass-header z-30 shrink-0">
+        <div className="mx-auto flex max-w-[90rem] items-center justify-between px-4 py-3">
           <Brand />
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -55,7 +56,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Tab nav row */}
-        <div className="mx-auto max-w-7xl px-2">
+        <div className="mx-auto max-w-[90rem] px-2">
           <nav className="flex items-center gap-1 overflow-x-auto">
             {NAV.map((item) => {
               const active = isActive(item.href, pathname);
@@ -74,21 +75,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Icon size={15} />
                   {item.label}
                   {active && (
-                    <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-t-full bg-eg-red" />
+                    <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-t-full bg-eg-green" />
                   )}
                 </Link>
               );
             })}
           </nav>
         </div>
+
+        {/* Global simulation control bar. */}
+        <SimBar />
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-7">{children}</main>
-
-      <footer className="mx-auto max-w-7xl px-4 py-8 text-xs text-eg-ink-soft">
-        EG Fuel Price Optimisation — prototype. Synthetic data; not real EG or
-        competitor pricing. Powered by Databricks Lakebase + Model Serving.
-      </footer>
+      <main className="eg-scroll min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto h-full max-w-[90rem] px-4 py-7">{children}</div>
+      </main>
     </div>
   );
 }

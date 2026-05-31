@@ -15,6 +15,7 @@ import { Plus, Minus, Maximize2, ChevronLeft } from "lucide-react";
 import type { Country, MapData, SiteMapPoint } from "@/lib/types";
 import { GEO_CONFIG, geoRegionKey, regionLabel } from "@/lib/geo";
 import { formatPrice, unitLabel } from "@/lib/utils";
+import { useSim } from "@/lib/sim/provider";
 
 interface Props {
   initial: MapData;
@@ -51,6 +52,7 @@ export function PriceMap({
   height = 520,
 }: Props) {
   const router = useRouter();
+  const { busy: simBusy } = useSim();
   const [country, setCountry] = useState<Country>(initial.country);
   const [data, setData] = useState<MapData>(initial);
   const [loading, setLoading] = useState(false);
@@ -354,6 +356,8 @@ export function PriceMap({
           ))}
         </div>
       )}
+
+      {simBusy && <div className="eg-shimmer-overlay" aria-hidden />}
     </div>
   );
 }
