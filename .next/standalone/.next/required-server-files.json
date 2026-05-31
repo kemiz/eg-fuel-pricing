@@ -2,10 +2,10 @@
   "version": 1,
   "config": {
     "env": {
-      "NEXT_PUBLIC_APP_VERSION": "0.3.1",
-      "NEXT_PUBLIC_BUILD_ID": "829e213",
+      "NEXT_PUBLIC_APP_VERSION": "0.3.2",
+      "NEXT_PUBLIC_BUILD_ID": "57ff412",
       "NEXT_PUBLIC_BUILD_BRANCH": "main",
-      "NEXT_PUBLIC_BUILD_TIME": "2026-05-31T19:39:17.187Z"
+      "NEXT_PUBLIC_BUILD_TIME": "2026-05-31T20:29:59.973Z"
     },
     "webpack": null,
     "typescript": {
