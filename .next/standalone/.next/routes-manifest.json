@@ -78,6 +78,12 @@
       "namedRegex": "^/_not\\-found(?:/)?$"
     },
     {
+      "page": "/analytics",
+      "regex": "^/analytics(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/analytics(?:/)?$"
+    },
+    {
       "page": "/api/assistant",
       "regex": "^/api/assistant(?:/)?$",
       "routeKeys": {},
@@ -96,16 +102,22 @@
       "namedRegex": "^/api/map(?:/)?$"
     },
     {
+      "page": "/api/pricing/apply",
+      "regex": "^/api/pricing/apply(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/pricing/apply(?:/)?$"
+    },
+    {
       "page": "/api/pricing/recommend",
       "regex": "^/api/pricing/recommend(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/pricing/recommend(?:/)?$"
     },
     {
-      "page": "/ask",
-      "regex": "^/ask(?:/)?$",
+      "page": "/api/sim",
+      "regex": "^/api/sim(?:/)?$",
       "routeKeys": {},
-      "namedRegex": "^/ask(?:/)?$"
+      "namedRegex": "^/api/sim(?:/)?$"
     },
     {
       "page": "/network",

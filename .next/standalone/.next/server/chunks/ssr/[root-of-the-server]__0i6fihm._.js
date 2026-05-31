@@ -1,3 +1,0 @@
-module.exports=[50227,(a,b,c)=>{b.exports=a.x("node:path",()=>require("node:path"))},59639,(a,b,c)=>{b.exports=a.x("node:process",()=>require("node:process"))},57764,(a,b,c)=>{b.exports=a.x("node:url",()=>require("node:url"))},69544,a=>{"use strict";let b=(0,a.i(64831).default)("minus",[["path",{d:"M5 12h14",key:"1ays0h"}]]);a.s(["Minus",0,b],69544)},33540,a=>{"use strict";let b=(0,a.i(64831).default)("search",[["path",{d:"m21 21-4.34-4.34",key:"14j7rj"}],["circle",{cx:"11",cy:"11",r:"8",key:"4ej97u"}]]);a.s(["Search",0,b],33540)}];
-
-//# sourceMappingURL=%5Broot-of-the-server%5D__0i6fihm._.js.map
