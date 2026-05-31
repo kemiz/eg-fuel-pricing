@@ -9,6 +9,9 @@
     "/api/pricing/apply": {
       "maxDuration": 30
     },
+    "/api/pricing/apply-all": {
+      "maxDuration": 60
+    },
     "/api/pricing/recommend": {
       "maxDuration": 300
     },

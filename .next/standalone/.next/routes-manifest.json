@@ -108,6 +108,12 @@
       "namedRegex": "^/api/pricing/apply(?:/)?$"
     },
     {
+      "page": "/api/pricing/apply-all",
+      "regex": "^/api/pricing/apply\\-all(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/pricing/apply\\-all(?:/)?$"
+    },
+    {
       "page": "/api/pricing/recommend",
       "regex": "^/api/pricing/recommend(?:/)?$",
       "routeKeys": {},

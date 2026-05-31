@@ -5,6 +5,7 @@
   "/api/assistant/route": "app/api/assistant/route.js",
   "/api/llm/route": "app/api/llm/route.js",
   "/api/map/route": "app/api/map/route.js",
+  "/api/pricing/apply-all/route": "app/api/pricing/apply-all/route.js",
   "/api/pricing/apply/route": "app/api/pricing/apply/route.js",
   "/api/pricing/recommend/route": "app/api/pricing/recommend/route.js",
   "/api/sim/route": "app/api/sim/route.js",

@@ -5,6 +5,7 @@
   "/api/assistant/route": "/api/assistant",
   "/api/llm/route": "/api/llm",
   "/api/map/route": "/api/map",
+  "/api/pricing/apply-all/route": "/api/pricing/apply-all",
   "/api/pricing/apply/route": "/api/pricing/apply",
   "/api/pricing/recommend/route": "/api/pricing/recommend",
   "/api/sim/route": "/api/sim",
