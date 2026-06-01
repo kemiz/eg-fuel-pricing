@@ -90,6 +90,11 @@ So DO NOT tell the user to click a button such as "Apply all" on a panel — the
 CRITICAL — read the transcript before answering "did you apply…?": when an earlier turn is marked "[PLATFORM ACTION — COMMITTED]" (a single apply or a network-wide bulk apply), those prices ARE already live. If the user asks whether the changes were applied, answer YES and summarise what was committed (how many sites, the grade, direction). NEVER deny a commit that the transcript shows happened. A turn marked "[AGENT RECOMMENDATION — NOT YET APPLIED]" is only a proposal — that one is not live until the user applies it.
 If the user asks WHAT price to set (advice, not a specific number), give your data-driven view and suggest a price; they can then say "apply $X" to commit it. Never claim you lack write access, and never refer to a "simulation" or "simulated day" — committed prices go live immediately.
 
+SCOPING "HOW DID THE ADJUSTMENT / THIS CHANGE DO?" — distinguish a question about ONE specific applied change from a question about the WHOLE network's performance:
+- If the user asks how "the adjustment", "that change", "this price change", "my change", or a specific site's change has performed (especially right after applying one, or with a site in focus), answer ONLY about THAT change. Anchor it to the change's OWN age from the "Recent applied changes" list (e.g. "applied 3 days ago"), NOT the run-wide tracking-period length. NEVER head this answer with "Performance since we started tracking (N days)" — that N is the whole run, not the age of this change, and using it is wrong and misleading.
+- For a single recent change, lead with: which site, what it moved from→to, how many days ago it landed, and its realized per-unit margin impact so far (or "too soon to tell — only K days of data" if it is only a day or two old). Then optionally its estimated daily/annualised margin effect.
+- Only use the run-wide "Performance since we started tracking (N days)" framing when the user asks about OVERALL/NETWORK/total performance, not about a single change.
+
 FOLLOW-UPS — at the VERY END of every response, add a single HTML comment listing 3 short, specific follow-up questions the user is likely to want next (drill deeper, take an action, or look at a related angle). Keep each label under ~7 words. This comment is hidden from the user and rendered as clickable buttons. Format EXACTLY:
 <!-- FOLLOWUPS: ["Break Florida down by site", "Which sites should we reprice?", "Compare to last week"] -->
 Make them flow naturally from what you just answered (e.g. if you showed dearer sites, suggest "Match competition on these" or "Optimise the worst offender").
@@ -153,17 +158,25 @@ export async function POST(req: NextRequest) {
         const dp = i.country === "US" ? 2 : 3;
         const impact =
           i.realizedMarginDelta == null
-            ? "measuring"
+            ? "still measuring"
             : `${i.realizedMarginDelta >= 0 ? "improved" : "hurt"} margin by ${sym}${Math.abs(i.realizedMarginDelta).toFixed(dp)}/unit`;
         const newP = i.newPrice != null ? `${sym}${i.newPrice.toFixed(dp)}` : "?";
-        return `- ${i.siteName} (${i.regionLabel}), ${i.source}, set ${newP} → ${impact}`;
+        // When the change landed, relative to today's sim clock, so the model
+        // never claims a days-old change happened "today".
+        const age =
+          i.daysSince <= 0
+            ? "applied today"
+            : i.daysSince === 1
+              ? "applied yesterday"
+              : `applied ${i.daysSince} days ago`;
+        return `- ${i.siteName} (${i.regionLabel}), ${i.source}, set ${newP} on ${i.day} (${age}) → ${impact}`;
       })
       .join("\n");
     perfLine = `PERFORMANCE (tracking period to date, ${perf.dayIndex} days):\n${countryLines}${
       measured.length
         ? `\nApplied price changes: ${helped}/${measured.length} measured changes improved per-unit margin.`
         : ""
-    }${recent ? `\nRecent applied changes:\n${recent}` : ""}\n\nThe UPLIFT is the extra fuel margin vs holding starting prices flat — i.e. the value the active pricing has added. Use these real figures when asked how we're doing overall. Refer to the period as "since we started tracking" or by date, never as a "simulation".\n\n`;
+    }${recent ? `\nRecent applied changes (with how long ago each landed):\n${recent}` : ""}\n\nThe UPLIFT is the extra fuel margin vs holding starting prices flat — i.e. the value the active pricing has added. Use these real figures when asked how we're doing overall. Refer to the period as "since we started tracking" or by date, never as a "simulation".\nIMPORTANT — applied-change recency: each applied change above states the date it landed and how long ago (e.g. "applied 9 days ago"). When the user asks how a change has performed, trust that age — do NOT assume a change happened "today" unless it literally says "applied today", and never claim you have no record of a change that is listed here. If a listed change is only a day or two old, say it is too soon to fully measure; if it is several days old, report its realized margin impact from the figures above.\n\n`;
   }
 
   let siteDetail = "";
@@ -184,6 +197,32 @@ export async function POST(req: NextRequest) {
         .slice(0, 8)
         .map((c) => `${c.competitorName} ${c.gradeId} ${c.price}`)
         .join(", ")}`;
+
+      // If this in-focus site has a recent applied change in the perf log,
+      // surface it explicitly with its own age + realized impact, so "how did
+      // the adjustment do?" is answered about THIS change (and its real age),
+      // not the whole-run tracking period.
+      const focusChange = perf?.interventions.find(
+        (i) => i.siteId === body.siteId
+      );
+      if (focusChange) {
+        const sym = focusChange.country === "US" ? "$" : "£";
+        const dp = focusChange.country === "US" ? 2 : 3;
+        const age =
+          focusChange.daysSince <= 0
+            ? "applied today — too soon to measure"
+            : focusChange.daysSince === 1
+              ? "applied yesterday — 1 day of data so far"
+              : `applied ${focusChange.daysSince} days ago`;
+        const impact =
+          focusChange.realizedMarginDelta == null
+            ? `still measuring (only ${Math.max(0, focusChange.daysSince)} day(s) of post-change data)`
+            : `realized per-unit margin ${focusChange.realizedMarginDelta >= 0 ? "+" : "−"}${sym}${Math.abs(focusChange.realizedMarginDelta).toFixed(dp)}/unit`;
+        const from =
+          focusChange.oldPrice != null ? `${sym}${focusChange.oldPrice.toFixed(dp)} → ` : "";
+        const to = focusChange.newPrice != null ? `${sym}${focusChange.newPrice.toFixed(dp)}` : "?";
+        siteDetail += `\n\nTHIS SITE'S MOST RECENT APPLIED CHANGE — ${focusChange.source} set ${from}${to} on ${focusChange.day}, ${age}; ${impact}. When the user asks how "the adjustment"/"this change" has done, answer about THIS change at its OWN age (${focusChange.daysSince} day(s)), NOT the ${perf?.dayIndex ?? "?"}-day run-wide tracking period.`;
+      }
 
       // Weekly-sampled regular price history (EG vs competitor average) so the
       // assistant can answer trend questions without flooding context.

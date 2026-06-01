@@ -101,6 +101,12 @@ function parseMetricRows(
 
 export function parseArtifact(type: string, body: string): Artifact | null {
   const t = type.replace(/^chart:|^card:/, "").toLowerCase();
+  // The message cleaner escapes lone tildes to "\~" so remark-gfm doesn't read
+  // them as strikethrough. Inside a fenced artifact body that escape is never
+  // un-applied by the markdown renderer, so it would otherwise surface as a
+  // literal backslash in metric values (e.g. "\~£8"). Strip it here — artifact
+  // bodies are parsed verbatim, not as markdown.
+  body = body.replace(/\\~/g, "~");
   try {
     switch (t) {
       case "bar":
